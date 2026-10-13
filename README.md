@@ -7,8 +7,7 @@ Statische Website ohne Build-Schritt, Backend, externe Bibliotheken oder Trackin
 - Interaktive Ermittlungs-Pinnwand (Knoten, Beziehungen, Notizen, mehrere Boards)
 - Vernehmungs-Assistent (Fragen, Antworten, Markierungen, kopierbares Protokoll und TXT-Export)
 - Leasing- & Ratenmanager (Zahlungen, Restbetrag, Vorauszahlung, nächste Rate)
-- Notizblock, Zeitrechner, Kennzeichen-Generator, Funkcode-Quiz
-- Textbausteine mit Platzhaltern, Dienstzeit-Tracker, Kontaktbuch
+- Notizblock, Zeitrechner, Textbausteine mit Platzhaltern
 - Einsatz-Timeline, Aufgabenverwaltung, Charakter-Dashboard
 - Getrennte Charakterprofile; JSON-Backup und -Wiederherstellung
 
