@@ -41,17 +41,66 @@ const textareaField = (label,name,value='',rows=4,extra='')=>`<div class="field 
 const btn = (action,label,cls='button-quiet',attr='')=>`<button type="button" class="button ${cls}" data-action="${esc(action)}" ${attr}>${label}</button>`;
 const head = (title,description,actions='') => `<div class="page-head"><div><div class="eyebrow">RP DESK / ${esc(TITLES[ui.page]||'WORKSPACE')}</div><h1>${esc(title)}</h1><p>${description}</p></div><div class="head-actions">${actions}</div></div>`;
 const uid = (p) => `${p}-${id()}`;
-function applyTheme(color){
- const hex = color || '#8aa6ff';
+const THEME_PRESETS = [
+ { id: 'midnight', name: 'Midnight Blue', bg: '#0b1019', sidebar: '#0e1420', card: '#121b29', border: '#273448', accent: '#8aa6ff' },
+ { id: 'emerald', name: 'Emerald / LSPD Green', bg: '#0b1612', sidebar: '#0e1c17', card: '#13261f', border: '#234438', accent: '#41aa5b' },
+ { id: 'crimson', name: 'Crimson Wine', bg: '#180b0f', sidebar: '#200e14', card: '#29121b', border: '#482734', accent: '#f87171' },
+ { id: 'amber', name: 'Amber Gold', bg: '#18120b', sidebar: '#20180e', card: '#292012', border: '#483827', accent: '#fbbf24' },
+ { id: 'cyber', name: 'Cyber Purple', bg: '#120b18', sidebar: '#180e20', card: '#221229', border: '#3d2748', accent: '#c084fc' },
+ { id: 'stealth', name: 'Stealth Dark', bg: '#0f1115', sidebar: '#14171d', card: '#1c2028', border: '#2d3340', accent: '#94a3b8' }
+];
+
+function hexToRgb(hex){
+ const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+ return m ? [parseInt(m[1],16), parseInt(m[2],16), parseInt(m[3],16)] : [138,166,255];
+}
+function rgbToHex(r,g,b){
+ return '#' + [r,g,b].map(x => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2,'0')).join('');
+}
+function mixColors(c1, c2, weight){
+ const rgb1 = hexToRgb(c1), rgb2 = hexToRgb(c2);
+ return rgbToHex(
+  rgb1[0] * (1-weight) + rgb2[0] * weight,
+  rgb1[1] * (1-weight) + rgb2[1] * weight,
+  rgb1[2] * (1-weight) + rgb2[2] * weight
+ );
+}
+
+function applyTheme(charObjOrColor){
  const root = document.documentElement;
- root.style.setProperty('--accent', hex);
- const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
- if(match){
-  const r = parseInt(match[1], 16), g = parseInt(match[2], 16), b = parseInt(match[3], 16);
-  root.style.setProperty('--accent-dim', `rgba(${r},${g},${b},0.15)`);
- } else {
-  root.style.setProperty('--accent-dim', 'rgba(138,166,255,0.15)');
+ let accent = '#8aa6ff';
+ let bg = '#0b1019';
+ let sidebar = null;
+ let card = null;
+ let border = null;
+
+ if(typeof charObjOrColor === 'string'){
+  accent = charObjOrColor;
+ } else if(charObjOrColor && typeof charObjOrColor === 'object'){
+  accent = charObjOrColor.color || charObjOrColor.accent || '#8aa6ff';
+  bg = charObjOrColor.bgColor || '#0b1019';
+  sidebar = charObjOrColor.sidebarColor || null;
+  card = charObjOrColor.cardColor || null;
+  border = charObjOrColor.borderColor || null;
  }
+
+ if(!sidebar) sidebar = mixColors(bg, '#ffffff', 0.04);
+ if(!card) card = mixColors(bg, '#ffffff', 0.08);
+ if(!border) border = mixColors(bg, '#ffffff', 0.22);
+ const cardHi = mixColors(card, '#ffffff', 0.08);
+ const topbar = mixColors(bg, '#ffffff', 0.05);
+ const inputBg = mixColors(bg, '#ffffff', 0.03);
+
+ root.style.setProperty('--accent', accent);
+ const rgb = hexToRgb(accent);
+ root.style.setProperty('--accent-dim', `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.15)`);
+ root.style.setProperty('--bg', bg);
+ root.style.setProperty('--sidebar', sidebar);
+ root.style.setProperty('--topbar', topbar);
+ root.style.setProperty('--card', card);
+ root.style.setProperty('--card-hi', cardHi);
+ root.style.setProperty('--input-bg', inputBg);
+ root.style.setProperty('--border', border);
 }
 function compressImage(file, maxDimension = 360, quality = 0.75){
  return new Promise((resolve, reject) => {
@@ -135,7 +184,7 @@ function renderNavigation(){let html='';for(const group of CATEGORIES){html+=`<d
 function render(){
  if(db.characters.length>0){
   if(!char())ui.charId=db.characters[0].id;
-  applyTheme(char()?.color);
+  applyTheme(char());
  } else {
   ui.charId=null;
   applyTheme('#8aa6ff');
@@ -177,8 +226,15 @@ function pageDashboard(){
 }
 function pageCharacters(){
  const c = char();
- return `${head('Charaktere & Datensicherung','Getrennte Daten für jeden Charakter. Sämtliche Module sind dem oben ausgewählten Charakter zugeordnet.')}
- <div class="grid"><div class="panel panel-pad span-8">${headlinePanel('Deine Charaktere')}<div class="grid">${db.characters.map(ch=>`<div class="span-6 character-card"><div class="character-avatar" style="background:${esc(ch.color||'#8aa6ff')}22;color:${esc(ch.color||'#8aa6ff')};border:1px solid ${esc(ch.color||'#8aa6ff')}55">${esc(ch.name.slice(0,2).toUpperCase())}</div><strong>${esc(ch.name)}</strong><div class="hint mt-12">${esc(ch.subtitle||'Ohne Beschreibung')}</div><div class="form-actions"><button class="button button-small ${ch.id===c?.id?'button-quiet':'button-ghost'}" data-action="switch-char" data-id="${esc(ch.id)}">${ch.id===c?.id?'Aktiv':'Auswählen'}</button>${btn('delete-char','Löschen','button-danger button-small',`data-id="${esc(ch.id)}"`)}</div></div>`).join('')||'<div class="span-12 hint">Noch keine Charaktere vorhanden.</div>'}</div>${c ? `<hr class="section-separator">${headlinePanel('Aktiven Charakter bearbeiten')}<div class="form-grid">${field('Name','name',c.name,'text',`data-char-field="name" maxlength="80"`)}${field('Rolle / Beschreibung','subtitle',c.subtitle||'','text','data-char-field="subtitle"')}${textareaField('Biografie / Notizen','bio',c.bio||'',4,'data-char-field="bio"')}${field('Akzentfarbe','color',c.color||'#8aa6ff','color','data-char-field="color"')}</div>` : ''}<hr class="section-separator">${headlinePanel('Neuer Charakter')}<form data-form="character-create"><div class="form-grid">${field('Name','name','','text','required maxlength="80"')}${field('Rolle / Beschreibung','subtitle','')}${field('Farbe','color','#8aa6ff','color')}</div><div class="form-actions"><button class="button">Charakter anlegen</button></div></form></div>
+ const presetsHtml = THEME_PRESETS.map(p => `
+  <button type="button" class="theme-preset-btn" data-action="apply-theme-preset" data-id="${esc(p.id)}">
+   <span class="theme-preset-dot" style="background:${esc(p.accent)}"></span>
+   <span>${esc(p.name)}</span>
+  </button>
+ `).join('');
+
+ return `${head('Charaktere & Farbschema','Getrennte Daten für jeden Charakter. Sämtliche Module sind dem oben ausgewählten Charakter zugeordnet.')}
+ <div class="grid"><div class="panel panel-pad span-8">${headlinePanel('Deine Charaktere')}<div class="grid">${db.characters.map(ch=>`<div class="span-6 character-card"><div class="character-avatar" style="background:${esc(ch.color||'#8aa6ff')}22;color:${esc(ch.color||'#8aa6ff')};border:1px solid ${esc(ch.color||'#8aa6ff')}55">${esc(ch.name.slice(0,2).toUpperCase())}</div><strong>${esc(ch.name)}</strong><div class="hint mt-12">${esc(ch.subtitle||'Ohne Beschreibung')}</div><div class="form-actions"><button class="button button-small ${ch.id===c?.id?'button-quiet':'button-ghost'}" data-action="switch-char" data-id="${esc(ch.id)}">${ch.id===c?.id?'Aktiv':'Auswählen'}</button>${btn('delete-char','Löschen','button-danger button-small',`data-id="${esc(ch.id)}"`)}</div></div>`).join('')||'<div class="span-12 hint">Noch keine Charaktere vorhanden.</div>'}</div>${c ? `<hr class="section-separator">${headlinePanel('Aktiven Charakter bearbeiten')}<div class="form-grid">${field('Name','name',c.name,'text',`data-char-field="name" maxlength="80"`)}${field('Rolle / Beschreibung','subtitle',c.subtitle||'','text','data-char-field="subtitle"')}${textareaField('Biografie / Notizen','bio',c.bio||'',4,'data-char-field="bio"')}</div><hr class="section-separator"><div class="section-caption">FARBSCHEMA ANPASSEN</div><div class="theme-presets-row">${presetsHtml}</div><div class="form-grid">${field('Akzentfarbe','color',c.color||'#8aa6ff','color','data-char-field="color"')}${field('Hintergrundfarbe (App)','bgColor',c.bgColor||'#0b1019','color','data-char-field="bgColor"')}${field('Karten / Boxen','cardColor',c.cardColor||'#121b29','color','data-char-field="cardColor"')}${field('Seitenleiste','sidebarColor',c.sidebarColor||'#0e1420','color','data-char-field="sidebarColor"')}${field('Rahmenfarbe (Borders)','borderColor',c.borderColor||'#273448','color','data-char-field="borderColor"')}</div>` : ''}<hr class="section-separator">${headlinePanel('Neuer Charakter')}<form data-form="character-create"><div class="form-grid">${field('Name','name','','text','required maxlength="80"')}${field('Rolle / Beschreibung','subtitle','')}${field('Akzentfarbe','color','#8aa6ff','color')}${field('Hintergrundfarbe','bgColor','#0b1019','color')}</div><div class="form-actions"><button class="button">Charakter anlegen</button></div></form></div>
  <div class="panel panel-pad span-4">${headlinePanel('Backup & Datenschutz')}<p class="hint">Alle Daten liegen im lokalen Speicher dieses Browsers und dieses Website-Ursprungs. Auf GitHub Pages wird nichts davon auf den Server hochgeladen.</p><div class="form-actions">${btn('export','↓ Alle Daten sichern','button')}<button class="button button-quiet" data-action="import">↑ JSON wiederherstellen</button></div><hr class="section-separator"><div class="section-caption">SPEICHERN & SYNCHRONISIEREN</div><p class="hint">Auf Handy und PC sind die Speicherstände getrennt. Exportiere das JSON-Backup und importiere es auf dem anderen Gerät. Es findet keine automatische Synchronisierung statt.</p><div class="notice">Deine Browserdaten können beim Löschen von Websitedaten, im Privatmodus oder bei einem Browserwechsel verloren gehen. Regelmäßige Backups sind wichtig.</div><div class="form-actions">${btn('clear-data','Alle lokalen Daten zurücksetzen','button-danger')}</div></div></div>`;
 }
 const NODE_TYPES={person:['Person','#729df1'],vehicle:['Fahrzeug','#6bdab5'],location:['Ort','#f1bc72'],phone:['Telefon','#d2a0f9'],case:['Aktenzeichen','#f48e9a'],other:['Sonstiges','#a4adc3']};
@@ -250,11 +306,11 @@ function interviewReport(v){const lines=[`VERNEHMUNGSPROTOKOLL`,`─────
 function pageInterviews(){let entries=scoped('interviews').sort((a,b)=>(b.date||'').localeCompare(a.date||''));let cur=sel('interviews');return `${head('Vernehmungs-Assistent','Fragen, Antworten und Widersprüche strukturiert erfassen und ein fertiges Textprotokoll erzeugen.')}
  <div class="list-detail">${listPane('interviews',entries,v=>v.subject||'Unbenannte Vernehmung',v=>`${v.caseNumber||'Ohne AZ'} · ${formatDate(v.date)}`,'Neue Vernehmung',`<form data-form="interview-create" class="form-grid">${field('Befragte Person','subject','','text','required')}${field('Aktenzeichen','caseNumber','','text','placeholder="2026/638"')}<div class="field full"><button class="button">${ico('plus',15)} Erstellen</button></div></form>`,'interviews')}
  <section class="panel detail-pane">${cur?`${headlinePanel('Vernehmung bearbeiten',`${btn('interview-copy','Protokoll kopieren','button-quiet button-small')}${btn('interview-export','TXT exportieren','button-quiet button-small')}${btn('delete-interview','Löschen','button-danger button-small')}`)}<div class="form-grid">${field('Befragte Person','subject',cur.subject,'text',`data-bind="interviews" data-id="${esc(cur.id)}"`)}${field('Aktenzeichen','caseNumber',cur.caseNumber,'text',`data-bind="interviews" data-id="${esc(cur.id)}"`)}${field('Datum & Uhrzeit','date',datetimeLocal(cur.date),'datetime-local',`data-bind="interviews" data-id="${esc(cur.id)}"`)}${field('Ort','location',cur.location||'','text',`data-bind="interviews" data-id="${esc(cur.id)}"`)}${field('Beteiligte / weitere Personen','participants',cur.participants||'','text',`data-bind="interviews" data-id="${esc(cur.id)}"`)}</div><hr class="section-separator">${headlinePanel('Fragen & Aussagen',badge(`${cur.questions.length} Einträge`))}${cur.questions.map((q,i)=>`<div class="question-item"><div class="question-head"><strong>${String(i+1).padStart(2,'0')}. ${esc(q.question)}</strong>${btn('delete-question','Entfernen','button-danger button-small',`data-id="${esc(q.id)}"`)}</div><textarea class="question-answer" aria-label="Antwort auf Frage ${i+1}" placeholder="Antwort während der Vernehmung notieren ..." data-question-field="answer" data-id="${esc(cur.id)}" data-qid="${esc(q.id)}">${esc(q.answer)}</textarea><div class="question-footer"><span class="hint">Einschätzung</span><select data-question-field="status" data-id="${esc(cur.id)}" data-qid="${esc(q.id)}"><option value="normal" ${q.status==='normal'?'selected':''}>Neutral</option><option value="Widerspruch" ${q.status==='Widerspruch'?'selected':''}>⚠ Widerspruch</option><option value="Nachprüfen" ${q.status==='Nachprüfen'?'selected':''}>Noch prüfen</option><option value="Bestätigt" ${q.status==='Bestätigt'?'selected':''}>Bestätigt</option></select></div></div>`).join('')||empty('Noch keine Fragen vorhanden.')}<form data-form="question-create" class="field-row mt-12"><div class="field" style="flex:1;min-width:200px"><label>Neue Frage</label><input name="question" placeholder="Was haben Sie beobachtet?" required></div><button class="button button-quiet">${ico('plus',15)} Frage hinzufügen</button></form><hr class="section-separator">${textareaField('Freie Notizen / Beobachtungen','notes',cur.notes||'',6,`data-bind="interviews" data-id="${esc(cur.id)}"`)}<div class="notice mt-18">Änderungen werden automatisch gespeichert, sobald du ein Eingabefeld verlässt.</div>`:empty('Neue Vernehmung links anlegen, um Fragen und Antworten festzuhalten.')}</section></div>`;}
-function leaseCalc(l){const rate=Math.max(.01,Number(l.weeklyRate)||1);const total=Math.max(0,Number(l.total)||0);const paid=(l.payments||[]).reduce((s,p)=>s+Math.max(0,Number(p.amount)||0),0);const covered=Math.floor((paid+0.000001)/rate);const remaining=Math.max(0,total-paid);let base=new Date((l.startDate||today())+'T12:00:00');if(isNaN(base.getTime()))base=new Date();base.setDate(base.getDate()+7*(Math.max(1,Number(l.intervalWeeks)||1))*covered);const next=`${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,'0')}-${String(base.getDate()).padStart(2,'0')}`;return {paid,remaining,covered,next,credit:Math.max(0,paid-covered*rate),progress:total?Math.min(100,paid/total*100):100};}
+function leaseCalc(l){const rate=Math.max(.01,Number(l.weeklyRate)||1);const total=Math.max(0,Number(l.total)||0);const paid=(l.payments||[]).reduce((s,p)=>s+Math.max(0,Number(p.amount)||0),0);const covered=Math.floor((paid+0.000001)/rate);const remaining=Math.max(0,total-paid);let base=new Date((l.startDate||today())+'T12:00:00');if(isNaN(base.getTime()))base=new Date();base.setDate(base.getDate()+7*(Math.max(1,Number(l.intervalWeeks)||1))*covered);const next=`${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,'0')}-${String(base.getDate()).padStart(2,'0')}`;const nextDueAmount=remaining<=0?0:Math.min(remaining,Math.max(0,rate-Math.max(0,paid-covered*rate)));return {paid,remaining,covered,next,credit:Math.max(0,paid-covered*rate),nextDueAmount,progress:total?Math.min(100,paid/total*100):100};}
 function pageLeases(){let entries=scoped('leases'),cur=sel('leases'),stats=cur?leaseCalc(cur):null;return `${head('Leasing & Raten','Wochenraten, Sonderzahlungen und offene Beträge. Vorauszahlungen verschieben automatisch den nächsten Zahlungstermin.')}
  <div class="list-detail">${listPane('leases',entries,v=>v.vehicle||v.name||'Ohne Fahrzeug',v=>`${v.plate||'Ohne Kennzeichen'} · ${fmtMoney(leaseCalc(v).remaining)} offen`,'Neuer Vertrag',`<form data-form="lease-create" class="form-grid">${field('Fahrzeug','vehicle','','text','required')}${field('Kennzeichen','plate','','text')}${field('Startdatum','startDate',today(),'date','required')}${field('Gesamtbetrag ($)','total','','number','required min="0.01" step="0.01"')}${field('Rate ($)','weeklyRate','','number','required min="0.01" step="0.01"')}<div class="field full"><button class="button">${ico('plus',15)} Vertrag anlegen</button></div></form>`,'leases')}
  <section class="panel detail-pane">${cur?`${headlinePanel('Vertragsdetails',btn('delete-lease','Vertrag löschen','button-danger button-small'))}<div class="form-grid">${field('Fahrzeug','vehicle',cur.vehicle,'text',`data-bind="leases" data-id="${esc(cur.id)}"`)}${field('Kennzeichen','plate',cur.plate||'','text',`data-bind="leases" data-id="${esc(cur.id)}"`)}${field('Gesamtbetrag ($)','total',cur.total,'number',`min="0.01" step="0.01" data-bind="leases" data-id="${esc(cur.id)}" data-number`)}${field('Rate ($)','weeklyRate',cur.weeklyRate,'number',`min="0.01" step="0.01" data-bind="leases" data-id="${esc(cur.id)}" data-number`)}${field('Beginn','startDate',cur.startDate,'date',`data-bind="leases" data-id="${esc(cur.id)}"`)}${field('Ratenabstand in Wochen','intervalWeeks',cur.intervalWeeks||1,'number',`min="1" max="52" step="1" data-bind="leases" data-id="${esc(cur.id)}" data-number`)}</div>
- <div class="form-actions">${btn('refresh-lease','Berechnung aktualisieren','button-quiet button-small')}</div><div class="metric-strip"><div class="metric"><b>${fmtMoney(cur.total)}</b><span>GESAMTBETRAG</span></div><div class="metric"><b class="text-green">${fmtMoney(stats.paid)}</b><span>BEZAHLT</span></div><div class="metric"><b>${fmtMoney(stats.remaining)}</b><span>RESTBETRAG</span></div></div><div class="progress"><div style="width:${stats.progress}%"></div></div><div class="notice mt-18">${stats.remaining<=0?'<strong>Vollständig bezahlt.</strong> Keine weiteren Raten offen.':`<strong>Nächste Zahlung: ${formatDate(stats.next)}</strong><div>Bereits gedeckte Raten: ${stats.covered}. Guthaben auf die nächste Rate: ${fmtMoney(stats.credit)}. Reguläre Rate: ${fmtMoney(cur.weeklyRate)}.</div>`}</div>
+ <div class="form-actions">${btn('refresh-lease','Berechnung aktualisieren','button-quiet button-small')}</div><div class="metric-strip"><div class="metric"><b>${fmtMoney(cur.total)}</b><span>GESAMTBETRAG</span></div><div class="metric"><b class="text-green">${fmtMoney(stats.paid)}</b><span>BEZAHLT</span></div><div class="metric"><b>${fmtMoney(stats.remaining)}</b><span>RESTBETRAG</span></div><div class="metric"><b class="text-amber">${stats.remaining<=0?'0 $':fmtMoney(stats.nextDueAmount)}</b><span>NÄCHSTE FÄLLIGE RATE</span></div><div class="metric"><b>${stats.remaining<=0?'–':formatDate(stats.next)}</b><span>NÄCHSTE FÄLLIGKEIT</span></div></div><div class="progress"><div style="width:${stats.progress}%"></div></div><div class="notice mt-18">${stats.remaining<=0?'<strong>Vollständig bezahlt.</strong> Keine weiteren Raten offen.':`<strong>Nächste Zahlung: ${formatDate(stats.next)} (${fmtMoney(stats.nextDueAmount)} fällig)</strong><div>Bereits gedeckte Raten: ${stats.covered}. Guthaben auf die nächste Rate: ${fmtMoney(stats.credit)}. Reguläre Rate: ${fmtMoney(cur.weeklyRate)}.</div>`}</div>
  <hr class="section-separator">${headlinePanel('Zahlung verbuchen')}<form class="form-grid" data-form="lease-payment">${field('Zahlungsdatum','date',today(),'date','required')}${field('Betrag ($)','amount','','number','required min="0.01" step="0.01"')}${field('Notiz (optional)','note','','text','placeholder="z. B. Vorauszahlung"')}<div class="field" style="justify-content:end"><button class="button">Zahlung speichern</button></div></form>
  <hr class="section-separator">${headlinePanel('Zahlungshistorie',badge(`${(cur.payments||[]).length} Zahlung(en)`))}<div class="table-wrap"><table class="mini-table"><thead><tr><th>Datum</th><th>Betrag</th><th>Notiz</th><th></th></tr></thead><tbody>${(cur.payments||[]).slice().sort((a,b)=>b.date.localeCompare(a.date)).map(p=>`<tr><td class="nowrap">${formatDate(p.date)}</td><td>${fmtMoney(p.amount)}</td><td>${esc(p.note||'–')}</td><td>${btn('delete-payment','×','button-danger button-small',`data-id="${esc(p.id)}"`)}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">Noch keine Zahlungen eingetragen.</td></tr>'}</tbody></table></div><p class="hint mt-18">Berechnung: Jede vollständig bezahlte Rate schiebt den Termin um den eingestellten Ratenabstand weiter. Teilbeträge werden als Guthaben angerechnet. Die Fälligkeit wird rein aus Zahlungsbeträgen und Vertragsbeginn errechnet.</p>`:empty('Erstelle links einen Vertrag und erfasse anschließend deine Zahlungen.')}</section></div>`;}
 function pageNotes(){let entries=scoped('notes').sort((a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||'')),cur=sel('notes');return `${head('Notizen','Private RP-Notizen, Ideen, Ermittlungsansätze und schnelle Gedanken – getrennt nach Charakter.')}
@@ -327,33 +383,43 @@ function pageTimeline(){let entries=scoped('timeline').filter(e=>([e.title,e.det
  <div class="grid"><section class="panel panel-pad span-4">${headlinePanel('Neues Ereignis')}<form data-form="timeline-create" class="form-grid">${field('Titel','title','','text','required')}${field('Datum & Uhrzeit','at',datetimeLocal(),'datetime-local','required')}${field('Kategorie','category','Einsatz','text')}${field('Aktenzeichen','caseNumber','','text')}${textareaField('Beschreibung','details','',4)}<div class="field full"><button class="button">Ereignis speichern</button></div></form></section><section class="panel panel-pad span-8">${headlinePanel('Chronologie',badge(`${entries.length} Ereignisse`))}<input class="search-field mb-12" type="search" data-search="timeline" placeholder="Ereignisse durchsuchen ..." value="${esc(ui.search.timeline||'')}"><div class="line-list">${entries.map(e=>`<div class="task-item"><div style="width:6px;background:#7497e4;border-radius:8px;align-self:stretch;flex-shrink:0"></div><div class="task-main"><div class="flex-between"><strong>${esc(e.title)}</strong>${btn('delete-timeline','×','button-danger button-small',`data-id="${esc(e.id)}"`)}</div><div class="task-meta">${badge(formatDate(e.at,true))}${e.category?badge(e.category):''}${e.caseNumber?badge('AZ '+e.caseNumber):''}</div>${e.details?`<p class="preformatted">${esc(e.details)}</p>`:''}<button class="button-link" data-action="edit-timeline" data-id="${esc(e.id)}">Bearbeiten</button></div></div>${ui.editTimeline===e.id?`<form data-form="timeline-edit" data-id="${esc(e.id)}" class="form-grid mb-18">${field('Titel','title',e.title,'text','required')}${field('Zeitpunkt','at',datetimeLocal(e.at),'datetime-local','required')}${field('Kategorie','category',e.category||'')}${field('Aktenzeichen','caseNumber',e.caseNumber||'')}${textareaField('Beschreibung','details',e.details||'')}<div class="field full"><button class="button button-quiet">Änderung speichern</button></div></form>`:''}`).join('')||empty('Noch keine Ereignisse angelegt.')}</div></section></div>`;}
 function pageTasks(){let all=scoped('tasks'),entries=all.filter(t=>ui.taskFilter==='all'||(ui.taskFilter==='done'?t.done:!t.done)).sort((a,b)=>Number(a.done)-Number(b.done)||(a.due||'9999').localeCompare(b.due||'9999'));return `${head('Aufgaben & To-dos','Offene RP-Aufgaben priorisieren, Fälligkeiten festhalten und Erledigtes abhaken.')}
  <div class="grid"><section class="panel panel-pad span-4">${headlinePanel('Neue Aufgabe')}<form data-form="task-create" class="form-grid">${field('Aufgabe','title','','text','required')}${field('Fällig bis','due','','date')}<div class="field full"><label>Priorität</label><select name="priority"><option value="normal">Normal</option><option value="high">Hoch</option><option value="low">Niedrig</option></select></div>${textareaField('Details','details','',3)}<div class="field full"><button class="button">${ico('plus',15)} Aufgabe hinzufügen</button></div></form></section><section class="panel panel-pad span-8">${headlinePanel('Meine Aufgaben',badge(`${all.filter(t=>!t.done).length} offen`))}<div class="chip-row mb-18">${[['open','Offen'],['all','Alle'],['done','Erledigt']].map(([k,t])=>`<button class="button button-small ${ui.taskFilter===k?'button':'button-ghost'}" data-action="task-filter" data-value="${k}">${t}</button>`).join('')}</div><div class="line-list">${entries.map(t=>`<div class="task-item"><label class="checkrow" style="padding-top:2px"><input type="checkbox" data-task-check="${esc(t.id)}" ${t.done?'checked':''} aria-label="${esc(t.title)} erledigt"></label><div class="task-main"><div class="flex-between"><strong class="${t.done?'task-done':''}">${esc(t.title)}</strong>${btn('delete-task','×','button-danger button-small',`data-id="${esc(t.id)}"`)}</div>${t.details?`<p class="preformatted">${esc(t.details)}</p>`:''}<div class="task-meta">${status(t.priority)}${t.due?badge('Fällig '+formatDate(t.due),t.due<today()&&!t.done?'red':''):''}</div></div></div>`).join('')||empty('Hier ist alles erledigt – keine Aufgaben in dieser Ansicht.')}</div></section></div>`;}
-function handleForm(f){const kind=f.dataset.form;if(!kind)return;const currentChar=char().id;
+function handleForm(f){const kind=f.dataset.form;if(!kind)return;const currentChar=char()?.id;
  switch(kind){
  case 'character-create': {
   const name=val(f,'name');if(!name)return;
-  const ch={id:uid('char'),name,subtitle:val(f,'subtitle'),color:val(f,'color')||'#8aa6ff',bio:''};
+  const ch={
+   id: uid('char'),
+   name,
+   subtitle: val(f,'subtitle'),
+   color: val(f,'color')||'#8aa6ff',
+   bgColor: val(f,'bgColor')||'#0b1019',
+   sidebarColor: '',
+   cardColor: '',
+   borderColor: '',
+   bio: ''
+  };
   db.characters.push(ch);
   const defaultSnips = defaultSnippetsForChar(ch.id, ch.name);
   db.snippets.push(...defaultSnips);
   ui.charId=ch.id;
   ui.selection={snippets: defaultSnips[0]?.id};
-  saveAndRender('Charakter mit Standard-Beschlussvorlagen angelegt.');
+  saveAndRender('Charakter mit Farbschema angelegt.');
   break;
  }
- case 'board-create': {const name=val(f,'name');if(!name)return;const b={id:uid('board'),charId:currentChar,name,nodes:[],edges:[]};db.boards.push(b);ui.selection.boards=b.id;ui.selection.node=null;saveAndRender('Pinnwand angelegt.');break}
+ case 'board-create': {const name=val(f,'name');if(!name||!currentChar)return;const b={id:uid('board'),charId:currentChar,name,nodes:[],edges:[]};db.boards.push(b);ui.selection.boards=b.id;ui.selection.node=null;saveAndRender('Pinnwand angelegt.');break}
  case 'board-node': {let b=sel('boards');if(!b)return;const label=val(f,'label');if(!label)return;b.nodes.push({id:uid('node'),type:val(f,'type'),label,notes:val(f,'notes'),image:ui.pendingNodeImage||null,x:60+(b.nodes.length%4)*230,y:55+(Math.floor(b.nodes.length/4)%5)*100});ui.pendingNodeImage=null;ui.selection.node=b.nodes.at(-1).id;saveAndRender('Element hinzugefügt.');break}
  case 'board-edge': {let b=sel('boards');if(!b)return;const from=val(f,'from'),to=val(f,'to');if(!from||!to||from===to){toast('Bitte zwei unterschiedliche Elemente wählen.',true);return}if(!b.nodes.find(x=>x.id===from)||!b.nodes.find(x=>x.id===to))return;b.edges.push({id:uid('edge'),from,to,label:val(f,'label')});saveAndRender('Verbindung hinzugefügt.');break}
- case 'interview-create': {const v={id:uid('interview'),charId:currentChar,subject:val(f,'subject'),caseNumber:val(f,'caseNumber'),date:datetimeLocal(),location:'',participants:'',notes:'',questions:[]};if(!v.subject)return;db.interviews.push(v);ui.selection.interviews=v.id;saveAndRender('Vernehmung angelegt.');break}
+ case 'interview-create': {if(!currentChar)return;const v={id:uid('interview'),charId:currentChar,subject:val(f,'subject'),caseNumber:val(f,'caseNumber'),date:datetimeLocal(),location:'',participants:'',notes:'',questions:[]};if(!v.subject)return;db.interviews.push(v);ui.selection.interviews=v.id;saveAndRender('Vernehmung angelegt.');break}
  case 'question-create': {const v=sel('interviews');if(!v)return;const question=val(f,'question');if(!question)return;v.questions.push({id:uid('question'),question,answer:'',status:'normal'});saveAndRender('Frage hinzugefügt.');break}
- case 'lease-create': {const total=Number(val(f,'total')),rate=Number(val(f,'weeklyRate'));if(!(total>0&&rate>0)){toast('Bitte gültige Beträge eingeben.',true);return}const l={id:uid('lease'),charId:currentChar,vehicle:val(f,'vehicle'),plate:val(f,'plate'),startDate:val(f,'startDate'),total,weeklyRate:rate,intervalWeeks:1,payments:[]};db.leases.push(l);ui.selection.leases=l.id;saveAndRender('Vertrag angelegt.');break}
+ case 'lease-create': {if(!currentChar)return;const total=Number(val(f,'total')),rate=Number(val(f,'weeklyRate'));if(!(total>0&&rate>0)){toast('Bitte gültige Beträge eingeben.',true);return}const l={id:uid('lease'),charId:currentChar,vehicle:val(f,'vehicle'),plate:val(f,'plate'),startDate:val(f,'startDate'),total,weeklyRate:rate,intervalWeeks:1,payments:[]};db.leases.push(l);ui.selection.leases=l.id;saveAndRender('Vertrag angelegt.');break}
  case 'lease-payment': {const l=sel('leases');if(!l)return;const amount=Number(val(f,'amount'));if(!(amount>0)){toast('Zahlung muss größer als null sein.',true);return}l.payments.push({id:uid('payment'),date:val(f,'date')||today(),amount,note:val(f,'note')});saveAndRender('Zahlung gespeichert – Fälligkeit aktualisiert.');break}
- case 'note-create': {const n={id:uid('note'),charId:currentChar,title:val(f,'title'),body:'',updatedAt:new Date().toISOString()};if(!n.title)return;db.notes.push(n);ui.selection.notes=n.id;saveAndRender('Notiz angelegt.');break}
+ case 'note-create': {if(!currentChar)return;const n={id:uid('note'),charId:currentChar,title:val(f,'title'),body:'',updatedAt:new Date().toISOString()};if(!n.title)return;db.notes.push(n);ui.selection.notes=n.id;saveAndRender('Notiz angelegt.');break}
  case 'time-diff': {const a=val(f,'from'),b=val(f,'to');if(!a||!b)return;const n=Math.abs(new Date(b)-new Date(a));if(!Number.isFinite(n)){toast('Ungültiges Datum.',true);return}ui.timeDiffFrom=a;ui.timeDiffTo=b;ui.timeResult={type:'diff',hours:Math.floor(n/3600000),minutes:Math.floor(n/60000),days:(n/86400000).toLocaleString('de-DE',{maximumFractionDigits:2})};render();break}
  case 'time-add': {const at=val(f,'at'),amount=Number(val(f,'amount'));const ms={minutes:60000,hours:3600000,days:86400000,weeks:7*86400000}[val(f,'unit')]||3600000;const result=new Date(new Date(at).getTime()+(val(f,'operation')==='subtract'?-1:1)*amount*ms);if(isNaN(result.getTime())){toast('Ungültiger Zeitpunkt.',true);return}ui.timeAt=at;ui.timeAmount=String(amount);ui.timeResult={type:'add',text:formatDate(result.toISOString(),true)};render();break}
- case 'snippet-create': {const s={id:uid('snip'),charId:currentChar,title:val(f,'title'),body:''};if(!s.title)return;db.snippets.push(s);ui.selection.snippets=s.id;saveAndRender('Beschlussvorlage angelegt.');break}
- case 'timeline-create': {const title=val(f,'title');if(!title)return;db.timeline.push({id:uid('event'),charId:currentChar,title,at:val(f,'at'),category:val(f,'category'),caseNumber:val(f,'caseNumber'),details:val(f,'details')});saveAndRender('Ereignis gespeichert.');break}
+ case 'snippet-create': {if(!currentChar)return;const s={id:uid('snip'),charId:currentChar,title:val(f,'title'),body:''};if(!s.title)return;db.snippets.push(s);ui.selection.snippets=s.id;saveAndRender('Beschlussvorlage angelegt.');break}
+ case 'timeline-create': {if(!currentChar)return;const title=val(f,'title');if(!title)return;db.timeline.push({id:uid('event'),charId:currentChar,title,at:val(f,'at'),category:val(f,'category'),caseNumber:val(f,'caseNumber'),details:val(f,'details')});saveAndRender('Ereignis gespeichert.');break}
  case 'timeline-edit': {const it=collectionItem('timeline',f.dataset.id);if(!it)return;for(const k of ['title','at','category','caseNumber','details'])it[k]=val(f,k);ui.editTimeline=null;saveAndRender('Ereignis geändert.');break}
- case 'task-create': {const title=val(f,'title');if(!title)return;db.tasks.push({id:uid('task'),charId:currentChar,title,due:val(f,'due'),priority:val(f,'priority'),details:val(f,'details'),done:false});saveAndRender('Aufgabe angelegt.');break}
+ case 'task-create': {if(!currentChar)return;const title=val(f,'title');if(!title)return;db.tasks.push({id:uid('task'),charId:currentChar,title,due:val(f,'due'),priority:val(f,'priority'),details:val(f,'details'),done:false});saveAndRender('Aufgabe angelegt.');break}
  }
 }
 function handleAction(el){const action=el.dataset.action, value=el.dataset.value, itemId=el.dataset.id;
@@ -385,6 +451,21 @@ function handleAction(el){const action=el.dataset.action, value=el.dataset.value
  if(action==='remove-node-image'){const b=sel('boards'),n=b?.nodes.find(n=>n.id===itemId);if(n){n.image=null;saveAndRender('Bild entfernt.')}return}
  if(action==='switch-char'){ui.charId=itemId;ui.selection={};render();return}
  if(action==='delete-char'){const c=db.characters.find(c=>c.id===itemId);if(!c||!confirm(`${c.name} und ALLE zugehörigen Einträge endgültig löschen?`))return;db.characters=db.characters.filter(c=>c.id!==itemId);for(const k of REQUIRED_COLLECTIONS.filter(k=>k!=='characters'))db[k]=db[k].filter(x=>x.charId!==itemId);ui.charId=db.characters[0]?.id||null;ui.selection={};saveAndRender('Charakter gelöscht.');return}
+ if(action==='apply-theme-preset'){
+  const c = char();
+  if(!c) return;
+  const preset = THEME_PRESETS.find(p=>p.id===itemId);
+  if(preset){
+   c.color = preset.accent;
+   c.bgColor = preset.bg;
+   c.sidebarColor = preset.sidebar;
+   c.cardColor = preset.card;
+   c.borderColor = preset.border;
+   applyTheme(c);
+   saveAndRender(`Farbschema „${preset.name}“ angewendet.`);
+  }
+  return;
+ }
  if(action==='delete-board'){let b=sel('boards');if(!b||!confirm(`Pinnwand „${b.name}“ mitsamt Elementen und Verbindungen löschen?`))return;db.boards=db.boards.filter(x=>x.id!==b.id);ui.selection.boards=null;ui.selection.node=null;saveAndRender('Pinnwand gelöscht.');return}
  if(action==='delete-node'){let b=sel('boards');if(!b)return;b.nodes=b.nodes.filter(n=>n.id!==itemId);b.edges=b.edges.filter(e=>e.from!==itemId&&e.to!==itemId);ui.selection.node=null;saveAndRender('Element gelöscht.');return}
  if(action==='delete-edge'){let b=sel('boards');if(!b)return;b.edges=b.edges.filter(e=>e.id!==itemId);saveAndRender('Verbindung gelöscht.');return}
@@ -433,7 +514,9 @@ function autosave(t){
   const c = char();if(!c)return;
   c[key]=t.value;persist();
   if(key==='name'){const opt=$('#character-select').selectedOptions[0];if(opt)opt.textContent=t.value}
-  if(key==='color'){applyTheme(t.value)}
+  if(['color','bgColor','sidebarColor','cardColor','borderColor'].includes(key)){
+   applyTheme(c);
+  }
   return;
  }
  if(t.matches('[data-node-field]')){
