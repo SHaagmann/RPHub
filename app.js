@@ -36,7 +36,13 @@ const datetimeLocal = (v=new Date()) => {const d=new Date(v);if(!Number.isFinite
 const formatDate = (v,includeTime=false) => {if(!v)return '–';const d= new Date(/T/.test(v)?v:v+'T12:00:00');return isNaN(d.getTime())?'–':new Intl.DateTimeFormat('de-DE',includeTime?{dateStyle:'short',timeStyle:'short'}:{dateStyle:'medium'}).format(d)};
 const fmtMoney = n => new Intl.NumberFormat('de-DE',{maximumFractionDigits:2,minimumFractionDigits:0}).format(Number(n)||0)+' $';
 const empty = (message='Noch keine Einträge vorhanden.') => `<div class="empty"><div class="empty-icon">◇</div>${esc(message)}</div>`;
-const field = (label,name,value='',type='text',extra='')=>`<div class="field"><label>${esc(label)}</label><input name="${esc(name)}" type="${esc(type)}" value="${esc(value)}" ${extra}></div>`;
+const field = (label,name,value='',type='text',extra='')=> {
+ if(type==='color'){
+  const val = value || '#8aa6ff';
+  return `<div class="field"><label>${esc(label)}</label><div class="color-input-wrap"><span class="color-preview-chip" style="background:${esc(val)}"></span><input class="color-native-input" name="${esc(name)}" type="color" value="${esc(val)}" ${extra}><span class="color-hex-text">${esc(val)}</span></div></div>`;
+ }
+ return `<div class="field"><label>${esc(label)}</label><input name="${esc(name)}" type="${esc(type)}" value="${esc(value)}" ${extra}></div>`;
+};
 const textareaField = (label,name,value='',rows=4,extra='')=>`<div class="field full"><label>${esc(label)}</label><textarea name="${esc(name)}" rows="${rows}" ${extra}>${esc(value)}</textarea></div>`;
 const btn = (action,label,cls='button-quiet',attr='')=>`<button type="button" class="button ${cls}" data-action="${esc(action)}" ${attr}>${label}</button>`;
 const head = (title,description,actions='') => `<div class="page-head"><div><div class="eyebrow">RP DESK / ${esc(TITLES[ui.page]||'WORKSPACE')}</div><h1>${esc(title)}</h1><p>${description}</p></div><div class="head-actions">${actions}</div></div>`;
@@ -532,6 +538,15 @@ function autosave(t){
  }
 }
 document.addEventListener('input',e=>{const t=e.target;
+ if(t.matches('.color-native-input')){
+  const wrap = t.closest('.color-input-wrap');
+  if(wrap){
+   const chip = wrap.querySelector('.color-preview-chip');
+   const text = wrap.querySelector('.color-hex-text');
+   if(chip) chip.style.background = t.value;
+   if(text) text.textContent = t.value.toUpperCase();
+  }
+ }
  if(t.matches('[data-search]')){let key=t.dataset.search;ui.search[key]=t.value;const pos=t.selectionStart;render();const current=$(`[data-search="${key}"]`);if(current){current.focus();try{current.setSelectionRange(pos,pos)}catch(_){}}return}
  if(t.matches('[data-variable]')){ui.variables[t.dataset.variable]=t.value;return}
  autosave(t);
