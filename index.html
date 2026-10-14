@@ -16,7 +16,7 @@
       <div class="brand"><div class="brand-mark">R<span>.</span></div><div><strong>RP DESK</strong><small>YOUR ROLEPLAY WORKSPACE</small></div></div>
       <div class="sidebar-label">WORKSPACE</div>
       <nav id="navigation" aria-label="Hauptnavigation"></nav>
-      <div class="sidebar-bottom"><span class="status-dot"></span> Lokal gespeichert <span class="sidebar-version">v1.0</span></div>
+      <div class="sidebar-bottom"><span class="status-dot"></span> Lokal gespeichert <span class="sidebar-version">v1.1</span></div>
     </aside>
     <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
     <div class="workspace">
@@ -29,6 +29,19 @@
     </div>
   </div>
   <input type="file" id="backup-import" accept=".json,application/json" hidden />
+  <dialog class="image-viewer" id="image-viewer" aria-label="Bildansicht">
+    <div class="image-viewer-layout">
+      <div class="image-viewer-toolbar">
+        <strong class="image-viewer-title" id="image-viewer-title">Pinnwand-Bild</strong>
+        <button class="icon-button" id="image-viewer-zoom-out" type="button" aria-label="Verkleinern" title="Verkleinern">−</button>
+        <span class="image-viewer-zoom" id="image-viewer-zoom">100%</span>
+        <button class="icon-button" id="image-viewer-zoom-in" type="button" aria-label="Vergrößern" title="Vergrößern">+</button>
+        <button class="button button-quiet button-small" id="image-viewer-zoom-reset" type="button">Anpassen</button>
+        <button class="icon-button" id="image-viewer-close" type="button" aria-label="Schließen" title="Schließen">×</button>
+      </div>
+      <div class="image-viewer-stage" id="image-viewer-stage"><img id="image-viewer-img" alt="" /></div>
+    </div>
+  </dialog>
   <div class="toast-container" id="toasts" aria-live="polite"></div>
 </body>
 </html>
