@@ -7,7 +7,7 @@ const CATEGORIES = [
   {heading:'ALLGEMEIN',items:[['dashboard','Übersicht','home'],['characters','Charaktere','users']]},
   {heading:'ERMITTLUNGEN',items:[['board','Ermittlungs-Pinnwand','network'],['interviews','Vernehmungen','file']]},
   {heading:'ORGANISATION',items:[['tasks','Aufgaben','check'],['notes','Notizen','note'],['timeline','Einsatz-Timeline','calendar']]},
-  {heading:'TOOLS',items:[['leases','Leasing & Raten','wallet'],['time','Zeitrechner','clock'],['snippets','Beschlussvorlagen','copy']]}
+  {heading:'TOOLS',items:[['leases','Leasing & Raten','wallet'],['time','Zeitrechner','clock'],['minigolf','Minigolf-Tracking','flag'],['snippets','Beschlussvorlagen','copy']]}
 ];
 const TITLES = Object.fromEntries(CATEGORIES.flatMap(g=>g.items.map(([id,title])=>[id,title])));
 const ICONS = {
@@ -21,6 +21,7 @@ const ICONS = {
   wallet:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M17 15h2M6 5V3h12"/>',
   clock:'<circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/>',
   copy:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/>',
+  flag:'<path d="M4 22V4m0 0c5-4 10 4 16 0v12c-6 4-11-4-16 0"/>',
   plus:'<path d="M12 5v14M5 12h14"/>',
   arrow:'<path d="M4 12h16m-7-7 7 7-7 7"/>',
   trash:'<path d="M3 6h18M8 6V4h8v2m3 0-1 15H6L5 6M10 10v7M14 10v7"/>',
@@ -171,11 +172,12 @@ const defaultData = () => ({
  notes: [],
  timeline: [],
  tasks: [],
- snippets: []
+  snippets: [],
+  minigolf: []
 });
-const REQUIRED_COLLECTIONS = ['characters','boards','interviews','leases','notes','timeline','tasks','snippets'];
-function validImport(v){return v&&typeof v==='object'&&v.version===VERSION&&REQUIRED_COLLECTIONS.every(k=>Array.isArray(v[k]))&&Array.isArray(v.characters)&&v.characters.every(c=>typeof c?.id==='string'&&typeof c?.name==='string')&&v.boards.every(b=>Array.isArray(b?.nodes)&&Array.isArray(b?.edges));}
-function normalizeData(data){for(const key of ['contacts','duties','plates','radio'])delete data[key];return data}
+const REQUIRED_COLLECTIONS = ['characters','boards','interviews','leases','notes','timeline','tasks','snippets','minigolf'];
+function validImport(v){return v&&typeof v==='object'&&v.version===VERSION&&REQUIRED_COLLECTIONS.filter(k=>k!=='minigolf').every(k=>Array.isArray(v[k]))&&(v.minigolf===undefined||Array.isArray(v.minigolf))&&Array.isArray(v.characters)&&v.characters.every(c=>typeof c?.id==='string'&&typeof c?.name==='string')&&v.boards.every(b=>Array.isArray(b?.nodes)&&Array.isArray(b?.edges));}
+function normalizeData(data){for(const key of ['contacts','duties','plates','radio'])delete data[key];if(!Array.isArray(data.minigolf))data.minigolf=[];return data}
 function load(){try{let raw=localStorage.getItem(STORAGE_KEY);if(raw){let data=JSON.parse(raw);if(validImport(data))return normalizeData(data);}}catch(e){console.warn('Speicher konnte nicht geladen werden',e)}return defaultData()}
 let db=load();
 let ui={page:'dashboard',charId:db.characters[0]?.id||null,selection:{},search:{},taskFilter:'open',variables:{AZ:'',KZ:'',NAME:'',ORT:'',SUSPECT:'',DURCHSUCHUNGSZIEL:'',GEGENSTAND:'',PARAGRAPH:'',TICKETNUMMER:'',ZEUGE:'',TATORT:'',INDIZIEN:''},timeResult:null,boardZoom:1,boardPanX:0,boardPanY:0,pendingNodeImage:null};
@@ -198,7 +200,7 @@ function render(){
  renderNavigation();
  $('#current-page-name').textContent=TITLES[ui.page];
  $('#character-select').innerHTML=db.characters.length>0 ? db.characters.map(c=>`<option value="${esc(c.id)}" ${c.id===ui.charId?'selected':''}>${esc(c.name)}</option>`).join('') : '<option value="" disabled selected>Kein Charakter</option>';
- const pages={dashboard:pageDashboard,characters:pageCharacters,board:pageBoard,interviews:pageInterviews,leases:pageLeases,notes:pageNotes,time:pageTime,snippets:pageSnippets,timeline:pageTimeline,tasks:pageTasks};
+ const pages={dashboard:pageDashboard,characters:pageCharacters,board:pageBoard,interviews:pageInterviews,leases:pageLeases,notes:pageNotes,time:pageTime,minigolf:pageMinigolf,snippets:pageSnippets,timeline:pageTimeline,tasks:pageTasks};
  $('#content').innerHTML=(pages[ui.page]||pageDashboard)();
  layoutBoardImages();
 }
@@ -273,7 +275,7 @@ function pageDashboard(){
  return `${head('Dein Workspace',`Willkommen zurück. Hier haste alles für ${esc(c.name)} auf einen Blick.`,btn('export','↓ JSON-Backup'))}
  <div class="hero"><div><div class="hero-tag">ACTIVE CHARACTER / ${esc(c.name.toUpperCase())}</div><h2>${esc(c.name)}</h2><p>${esc(c.subtitle||'Dein Charakter')}. Organisiere deine RP-Notizen, Aufgaben und Ermittlungen an einer zentralen Stelle – privat und lokal.</p><div class="form-actions">${btn('go-tasks','Aufgaben öffnen','button')}${btn('go-notes','Notizen öffnen','button-quiet')}</div></div><div class="hero-art">RP.</div></div>
  <div class="grid mb-18"><div class="panel stat-card span-6"><div class="stat-caption">OFFENE AUFGABEN</div><div class="stat-icon">${ico('check')}</div><div class="stat-number">${open.length}</div><div class="stat-foot">Auf deiner Liste</div></div><div class="panel stat-card span-6"><div class="stat-caption">PINNWÄNDE</div><div class="stat-icon">${ico('network')}</div><div class="stat-number">${boards.length}</div><div class="stat-foot">Ermittlungsübersichten</div></div></div>
- <div class="grid"><div class="panel panel-pad span-8">${headlinePanel('Schnellzugriff')}<div class="quick-grid">${[['board','Pinnwand','network'],['interviews','Vernehmungen','file'],['timeline','Timeline','calendar'],['leases','Leasing','wallet'],['snippets','Beschlussvorlagen','copy'],['time','Zeitrechner','clock']].map(([p,t,i])=>`<button class="quick-link" data-nav="${p}"><span class="quick-icon">${ico(i)}</span>${t}</button>`).join('')}</div></div>
+ <div class="grid"><div class="panel panel-pad span-8">${headlinePanel('Schnellzugriff')}<div class="quick-grid">${[['board','Pinnwand','network'],['interviews','Vernehmungen','file'],['timeline','Timeline','calendar'],['leases','Leasing','wallet'],['minigolf','Minigolf','flag'],['snippets','Beschlussvorlagen','copy'],['time','Zeitrechner','clock']].map(([p,t,i])=>`<button class="quick-link" data-nav="${p}"><span class="quick-icon">${ico(i)}</span>${t}</button>`).join('')}</div></div>
  <div class="panel panel-pad span-4">${headlinePanel('Anstehend',`<button class="button-link" data-nav="tasks">Alle Aufgaben →</button>`)}<div class="line-list">${open.sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')).slice(0,5).map(t=>`<div class="line-item"><div class="line-item-main"><strong>${esc(t.title)}</strong><small>${t.due?'Fällig '+formatDate(t.due):'Ohne Fälligkeit'}</small></div>${status(t.priority)}</div>`).join('')||'<p class="hint">Keine offenen Aufgaben. Sauber!</p>'}</div>${nextLease?`<hr class="section-separator"><div class="section-caption">NÄCHSTE LEASINGRATE</div><div class="flex-between"><div><strong>${esc(nextLease.vehicle||nextLease.name)}</strong><div class="hint">${formatDate(nextLease.calc.next)}</div></div>${badge(fmtMoney(nextLease.weeklyRate),'amber')}</div>`:''}</div></div>`;
 }
 function pageCharacters(){
@@ -371,6 +373,18 @@ function pageNotes(){let entries=scoped('notes').sort((a,b)=>(b.updatedAt||'').l
 function pageTime(){return `${head('RP-Zeitrechner','Zeitunterschiede ausrechnen und Fristen oder Zeitpunkte verschieben. Die Berechnung erfolgt in deiner lokalen Zeitzone.')}
  <div class="grid"><section class="panel panel-pad span-6">${headlinePanel('Zeitdifferenz')}<form data-form="time-diff" class="form-grid">${field('Von','from',ui.timeDiffFrom||datetimeLocal(),'datetime-local','required')}${field('Bis','to',ui.timeDiffTo||datetimeLocal(Date.now()+3600000),'datetime-local','required')}<div class="field full"><button class="button">Differenz berechnen</button></div></form>${ui.timeResult?.type==='diff'?`<div class="metric-strip"><div class="metric"><b>${ui.timeResult.hours}</b><span>STUNDEN</span></div><div class="metric"><b>${ui.timeResult.minutes}</b><span>MINUTEN</span></div><div class="metric"><b>${ui.timeResult.days}</b><span>TAGE</span></div></div>`:''}</section>
  <section class="panel panel-pad span-6">${headlinePanel('Zeitpunkt verschieben')}<form data-form="time-add" class="form-grid">${field('Ausgangszeit','at',ui.timeAt||datetimeLocal(),'datetime-local','required')}${field('Betrag','amount',ui.timeAmount||'1','number','min="0" required')}<div class="field"><label>Einheit</label><select name="unit"><option value="minutes">Minuten</option><option value="hours" selected>Stunden</option><option value="days">Tage</option><option value="weeks">Wochen</option></select></div><div class="field"><label>Operation</label><select name="operation"><option value="add">Addieren</option><option value="subtract">Subtrahieren</option></select></div><div class="field full"><button class="button">Zeitpunkt berechnen</button></div></form>${ui.timeResult?.type==='add'?`<div class="notice mt-18"><strong>Ergebnis: ${esc(ui.timeResult.text)}</strong></div>`:''}</section></div>`;}
+function pageMinigolf(){
+ if(!char())return `${head('Minigolf-Tracking','Runden, Bahnen und Spielergebnisse lokal festhalten.')}${empty('Bitte lege zuerst einen Charakter an.')}`;
+ const rounds=scoped('minigolf').slice().sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+ const current=sel('minigolf');
+ const roundRows=rounds.map(round=>`<button class="entry ${current?.id===round.id?'selected':''}" data-select="minigolf" data-id="${esc(round.id)}"><strong>${esc(round.course)}</strong><small>${round.holes.length} Bahnen · ${round.players.length} Spieler · ${formatDate(round.createdAt)}</small></button>`).join('')||empty('Noch keine Runden angelegt.');
+ if(!current)return `${head('Minigolf-Tracking','Erstelle eine Runde und erfasse die Schläge für alle Mitspielenden.')}<div class="list-detail"><section class="panel list-pane">${headlinePanel('Neue Runde')}<form data-form="golf-create" class="form-grid">${field('Platz / Runde','course','','text','required maxlength="80" placeholder="z. B. Stadtpark"')}<div class="field"><label for="golf-holes">Bahnen</label><select id="golf-holes" name="holes"><option value="9">9 Bahnen</option><option value="18">18 Bahnen</option></select></div><div class="field full"><label for="golf-players">Spielerinnen und Spieler</label><input id="golf-players" name="players" required placeholder="Namen mit Komma trennen"></div><div class="field full"><button class="button">${ico('plus',15)} Runde starten</button></div></form><hr class="section-separator">${roundRows}</section><section class="panel detail-pane">${empty('Lege links eine Runde an. Par ist standardmäßig auf 2 gesetzt und kann je Bahn angepasst werden.')}</section></div>`;
+ const totals=current.players.map(player=>{const strokes=player.scores.reduce((sum,score)=>sum+(Number(score)||0),0);const par=current.holes.reduce((sum,hole,index)=>sum+(player.scores[index]?Number(hole.par)||2:0),0);const played=player.scores.filter(score=>Number(score)>0).length;return {player,strokes,par,played}}).sort((a,b)=>(a.played?0:1)-(b.played?0:1)||a.strokes-b.strokes);
+ const holesHeader=current.holes.map((hole,index)=>`<th>${index+1}</th>`).join('');
+ const parRow=`<tr class="golf-par-row"><th>Par</th>${current.holes.map((hole,index)=>`<td><input aria-label="Par Bahn ${index+1}" type="number" min="1" max="5" value="${Number(hole.par)||2}" data-golf-par data-round-id="${esc(current.id)}" data-hole-index="${index}"></td>`).join('')}<td>–</td><td>–</td></tr>`;
+ const playerRows=current.players.map(({id:playerId,name,scores=[]})=>{const total=totals.find(item=>item.player.id===playerId);return `<tr><th>${esc(name)}<small>${total.played}/${current.holes.length} gespielt</small></th>${current.holes.map((hole,index)=>`<td><input aria-label="${esc(name)}, Bahn ${index+1}" type="number" min="1" max="20" placeholder="–" value="${Number(scores[index])||''}" data-golf-score data-round-id="${esc(current.id)}" data-player-id="${esc(playerId)}" data-hole-index="${index}"></td>`).join('')}<td><strong>${total.strokes||'–'}</strong></td><td>${total.played?`${total.strokes-total.par>0?'+':''}${total.strokes-total.par}`:'–'}</td></tr>`}).join('');
+ return `${head('Minigolf-Tracking','Schlag für Schlag zur Übersicht. Alle Eingaben werden automatisch lokal gespeichert.',btn('delete-golf-round','Runde löschen','button-danger button-small',`data-id="${esc(current.id)}"`))}<div class="list-detail"><section class="panel list-pane">${headlinePanel('Runden')}<form data-form="golf-create" class="form-grid">${field('Platz / Runde','course','','text','required maxlength="80" placeholder="z. B. Stadtpark"')}<div class="field"><label>Bahnen</label><select name="holes"><option value="9">9 Bahnen</option><option value="18">18 Bahnen</option></select></div><div class="field full"><label>Spielerinnen und Spieler</label><input name="players" required placeholder="Namen mit Komma trennen"></div><div class="field full"><button class="button">${ico('plus',15)} Runde starten</button></div></form><hr class="section-separator"><div class="entry-list">${roundRows}</div></section><section class="panel detail-pane">${headlinePanel(esc(current.course),badge(`${current.holes.length} Bahnen · ${formatDate(current.createdAt)}`))}<div class="table-wrap golf-table-wrap"><table class="mini-table golf-table"><thead><tr><th>Spieler</th>${holesHeader}<th>Gesamt</th><th>± Par</th></tr></thead><tbody>${parRow}${playerRows}</tbody></table></div><div class="section-caption mt-18">ZWISCHENSTAND</div><div class="line-list">${totals.map((item,index)=>`<div class="line-item"><div class="line-item-main"><strong>${index+1}. ${esc(item.player.name)}</strong><small>${item.played}/${current.holes.length} Bahnen</small></div><strong>${item.strokes||'–'} ${item.played?`<span class="hint">(${item.strokes-item.par>0?'+':''}${item.strokes-item.par})</span>`:''}</strong></div>`).join('')}</div></section></div>`;
+}
 const SNIPPET_FIELDS = [
  ['SUSPECT', 'Suspect (Tatverdächtiger)', '[SUSPECT]'],
  ['DURCHSUCHUNGSZIEL', 'Durchsuchungsziel (Adresse / Kennzeichen)', '[DURCHSUCHUNGSZIEL]'],
@@ -472,9 +486,11 @@ function handleForm(f){const kind=f.dataset.form;if(!kind)return;const currentCh
  case 'timeline-create': {if(!currentChar)return;const title=val(f,'title');if(!title)return;db.timeline.push({id:uid('event'),charId:currentChar,title,at:val(f,'at'),category:val(f,'category'),caseNumber:val(f,'caseNumber'),details:val(f,'details')});saveAndRender('Ereignis gespeichert.');break}
  case 'timeline-edit': {const it=collectionItem('timeline',f.dataset.id);if(!it)return;for(const k of ['title','at','category','caseNumber','details'])it[k]=val(f,k);ui.editTimeline=null;saveAndRender('Ereignis geändert.');break}
  case 'task-create': {if(!currentChar)return;const title=val(f,'title');if(!title)return;db.tasks.push({id:uid('task'),charId:currentChar,title,due:val(f,'due'),priority:val(f,'priority'),details:val(f,'details'),done:false});saveAndRender('Aufgabe angelegt.');break}
+ case 'golf-create': {if(!currentChar)return;const course=val(f,'course'),names=[...new Set(val(f,'players').split(',').map(name=>name.trim()).filter(Boolean))];if(!course||!names.length){toast('Bitte einen Platz und mindestens einen Namen angeben.',true);return}const holes=Number(val(f,'holes'))===18?18:9;const round={id:uid('golf'),charId:currentChar,course,createdAt:datetimeLocal(),holes:Array.from({length:holes},()=>({par:2})),players:names.map(name=>({id:uid('player'),name,scores:Array(holes).fill(null)}))};db.minigolf.push(round);ui.selection.minigolf=round.id;saveAndRender('Minigolf-Runde angelegt.');break}
  }
 }
 function handleAction(el){const action=el.dataset.action, value=el.dataset.value, itemId=el.dataset.id;
+ if(action==='delete-golf-round'){const round=collectionItem('minigolf',itemId);if(!round||!confirm(`Minigolf-Runde „${round.course}“ löschen?`))return;db.minigolf=db.minigolf.filter(item=>item.id!==itemId);ui.selection.minigolf=null;saveAndRender('Minigolf-Runde gelöscht.');return}
  if(action==='refresh-lease'){render();return}
  if(action.startsWith('go-')){setPage(action.slice(3));return}
  if(action==='export'){download(`rp-desk-backup-${today()}.json`,JSON.stringify(db,null,2),'application/json');toast('JSON-Backup erstellt.');return}
@@ -555,6 +571,7 @@ function handleAction(el){const action=el.dataset.action, value=el.dataset.value
 document.addEventListener('click',e=>{const boardImage=e.target.closest?.('#board-svg image');if(boardImage){const node=sel('boards')?.nodes.find(item=>item.id===boardImage.closest('[data-node-id]')?.dataset.nodeId);if(node?.image)openImageViewer(node.image,node.label);return}const nav=e.target.closest('[data-nav]');if(nav){setPage(nav.dataset.nav);return}const select=e.target.closest('[data-select]');if(select){ui.selection[select.dataset.select]=select.dataset.id;render();return}const a=e.target.closest('[data-action]');if(a){handleAction(a);return}});
 document.addEventListener('submit',e=>{const f=e.target.closest('[data-form]');if(!f)return;e.preventDefault();handleForm(f)});
 function autosave(t){
+ if(t.matches('[data-golf-score],[data-golf-par]')){const round=collectionItem('minigolf',t.dataset.roundId),holeIndex=Number(t.dataset.holeIndex);if(!round||!Number.isInteger(holeIndex)||!round.holes[holeIndex])return;const value=t.value===''?null:Number(t.value);if(value!==null&&(!Number.isFinite(value)||value<1||value>(t.hasAttribute('data-golf-par')?5:20)))return;if(t.hasAttribute('data-golf-par'))round.holes[holeIndex].par=value??2;else{const player=round.players.find(item=>item.id===t.dataset.playerId);if(!player)return;player.scores[holeIndex]=value}persist();return}
  if(t.matches('[data-board-name]')){const b=sel('boards');if(b&&b.id===t.dataset.boardName&&t.value.trim()){b.name=t.value;persist();const opt=$('#board-choice').selectedOptions[0];if(opt)opt.textContent=t.value}return}
  if(t.matches('[data-bind]')){
   const v=t.hasAttribute('data-number')?Number(t.value):t.value;
@@ -598,6 +615,7 @@ document.addEventListener('input',e=>{const t=e.target;
  autosave(t);
 });
 document.addEventListener('change',async e=>{const t=e.target;
+ if(t.matches('[data-golf-score],[data-golf-par]')){render();return}
  if(t.id==='character-select'){ui.charId=t.value;ui.selection={};render();return}
  if(t.id==='board-choice'){ui.selection.boards=t.value;ui.selection.node=null;render();return}
  if(t.matches('[data-board-dim]')){

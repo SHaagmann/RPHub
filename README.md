@@ -6,6 +6,7 @@ Statische Website ohne Build-Schritt, Backend, externe Bibliotheken oder Trackin
 
 - Interaktive Ermittlungs-Pinnwand (Knoten, Beziehungen, Notizen, mehrere Boards)
 - Vernehmungs-Assistent (Fragen, Antworten, Markierungen, kopierbares Protokoll und TXT-Export)
+- Minigolf-Tracking mit Scorecards für 9 oder 18 Bahnen, mehreren Spielern, editierbarem Par und Live-Zwischenstand
 - Leasing- & Ratenmanager (Zahlungen, Restbetrag, Vorauszahlung, nächste Rate)
 - Notizblock, Zeitrechner, Textbausteine mit Platzhaltern
 - Einsatz-Timeline, Aufgabenverwaltung, Charakter-Dashboard
