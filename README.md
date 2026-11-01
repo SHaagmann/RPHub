@@ -6,16 +6,24 @@ Statische Website ohne Build-Schritt, Backend, externe Bibliotheken oder Trackin
 
 - Interaktive Ermittlungs-Pinnwand (Knoten, Beziehungen, Notizen, mehrere Boards)
 - Vernehmungs-Assistent (Fragen, Antworten, Markierungen, kopierbares Protokoll und TXT-Export)
-- Minigolf-Tracking mit Scorecards für 9 oder 18 Bahnen, mehreren Spielern, editierbarem Par und Live-Zwischenstand
+- Evidence-Vergleich für Hülsen mit importierbaren Laborberichten, Vergleichsverlauf und offenen Vergleichspaaren
+- Minigolf-Tracking mit standardmäßig 12 Bahnen (alternativ 9 oder 18), mehreren Spielern, editierbarem Par und Live-Zwischenstand
 - Leasing- & Ratenmanager (Zahlungen, Restbetrag, Vorauszahlung, nächste Rate)
 - Notizblock, Zeitrechner, Textbausteine mit Platzhaltern
 - Einsatz-Timeline, Aufgabenverwaltung, Charakter-Dashboard
 - Getrennte Charakterprofile; JSON-Backup und -Wiederherstellung
 
+## Quellcode-Aufteilung
+
+- `js/core.js` enthält gemeinsame Hilfsfunktionen, den lokalen Datenspeicher und den UI-Zustand.
+- `js/pages/` enthält die Ansichten für Dashboard/Charaktere, Ermittlungen sowie Organisation und Tools.
+- `app.js` verbindet die Seiten mit Navigation, Formularen, Aktionen und Eingabeereignissen.
+- `index.html` lädt die klassischen Skripte in Abhängigkeitsreihenfolge. Dadurch bleibt die App auch direkt über `file://` nutzbar.
+
 ## GitHub Pages – ohne Build
 
 1. Neues GitHub-Repository anlegen, z. B. `rp-desk`.
-2. **Alle Dateien aus diesem Verzeichnis** ins Hauptverzeichnis (`/`) des Repositorys hochladen: `index.html`, `styles.css`, `app.js`, `favicon.svg`, `README.md`.
+2. **Alle Dateien und Ordner aus diesem Verzeichnis** ins Hauptverzeichnis (`/`) des Repositorys hochladen, insbesondere auch den Ordner `js/` mit den Seitenmodulen.
 3. Unter **Settings → Pages** als Quelle **Deploy from a branch**, Branch `main`, Ordner `/(root)` auswählen und speichern.
 4. GitHub veröffentlicht die Seite anschließend typischerweise unter `https://DEIN-NAME.github.io/rp-desk/`.
 

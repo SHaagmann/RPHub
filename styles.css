@@ -215,6 +215,29 @@ to{opacity:1;transform:translateY(0)}
 .nowrap{white-space:nowrap}
 .preformatted{white-space:pre-wrap;overflow-wrap:anywhere}
 .storage-box{word-break:break-word}
+.evidence-metrics{grid-template-columns:repeat(3,minmax(0,1fr));margin:0 0 17px}
+.evidence-layout{align-items:start}
+.evidence-layout>.panel{min-width:0}
+.evidence-suggestions,.evidence-card-list,.evidence-report-list{display:flex;flex-direction:column;gap:8px}
+.evidence-suggestion,.evidence-card,.evidence-report-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--card-hi);min-width:0}
+.evidence-suggestion>div,.evidence-card-main{display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-width:0}
+.evidence-suggestion small,.evidence-card-main small{flex-basis:100%;color:var(--muted);font-size:11px}
+.evidence-card-main p{flex-basis:100%;margin:2px 0 0;color:var(--soft);font-size:12px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+.evidence-card code,.evidence-report-pair code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}
+.evidence-report-row{align-items:flex-start}
+.evidence-report-pair{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:4px}
+.evidence-report-pair>span{color:var(--accent)}
+.evidence-report-meta{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}
+.evidence-report-meta small{flex-basis:100%;text-align:right;color:var(--muted);font-size:10px}
+.evidence-report-row>.button{flex:0 0 auto}
+.evidence-layout .empty{padding:18px 12px;font-size:12px}
+@media(max-width:700px){
+ .evidence-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .evidence-suggestion,.evidence-card,.evidence-report-row{align-items:flex-start}
+ .evidence-report-row{flex-wrap:wrap}
+ .evidence-report-meta{justify-content:flex-start}
+ .evidence-report-meta small{text-align:left}
+}
 
 @media(max-width:1300px){.span-3{grid-column:span 6}
 .span-4{grid-column:span 6}
@@ -293,5 +316,4 @@ to{opacity:1;transform:translateY(0)}
 .color-native-input::-webkit-color-swatch-wrapper{padding:0}
 .color-native-input::-webkit-color-swatch{border:1px solid rgba(255,255,255,.2);border-radius:6px}
 .color-hex-text{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;font-weight:600;color:var(--text);letter-spacing:.05em;text-transform:uppercase}
-
 
