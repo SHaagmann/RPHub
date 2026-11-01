@@ -160,9 +160,15 @@ function defaultSnippetsForChar(charId, authorName){
    charId,
    title: 'Antragsvorlage – Beweismittelsicherung',
    body: `### Beweismittelsicherung\n**Hinweis zu ****[INDIZIEN]****:** Die aufgelisteten Indizien müssen insgesamt für den bearbeitenden Richter nachvollziehbar mit der vorgeworfenen Straftat in Verbindung stehen.\n\n**Antragsvorlage**\n\nSehr geehrte Judiciary,\n\naufgrund des Verdachts auf Besitz von [GEGENSTAENDE] beantragt das SAPD die Durchsuchung von [DURCHSUCHUNGSZIEL] zur Sicherung von Beweismitteln, die zur weiteren Strafverfolgung oder einem forensischen Abgleich notwendig sind.\n\nBegründung:\n\nEs liegen ausreichend Indizien vor: [INDIZIEN], dass [SUSPECT] an einer Straftat unter Verwendung von [GEGENSTAND] / an der Entwendung von [GEGENSTAND] am [DATUM] teilgenommen hat.\n\nVerstoß gegen [PARAGRAPH]\n\n[AZ]\n\nBest wishes,\n\n[NAME]`
+  },
+  {
+     id: uid('snip'),
+     charId,
+     title: 'Antragsvorlage – Ausbau illegaler Fahrzeugveränderungen',
+    body: `Greetings,\n\naufgrund des Verdachts auf illegales Tuning beantragt das SAPD den Ausbau potenziell gefundener illegaler Veränderungen aus dem Fahrzeug [FAHRZEUG] mit dem Kennzeichen [KENNZEICHEN] von [SUSPECT].\n\nBegründung:\n\n[SACHVERHALT]\n\nWeitere Details können dem entsprechenden Eintrag in der Akte "[SAMMELAKTE]" entnommen werden.\n\nVorwurf:\nVerstoß gegen [PARAGRAPH]\n\nBest regards,\n\n[NAME]`
+    }
+   ];
   }
- ];
-}
 const defaultData = () => ({
  version: VERSION,
  characters: [],
@@ -180,7 +186,7 @@ function validImport(v){return v&&typeof v==='object'&&v.version===VERSION&&REQU
 function normalizeData(data){for(const key of ['contacts','duties','plates','radio'])delete data[key];if(!Array.isArray(data.minigolf))data.minigolf=[];return data}
 function load(){try{let raw=localStorage.getItem(STORAGE_KEY);if(raw){let data=JSON.parse(raw);if(validImport(data))return normalizeData(data);}}catch(e){console.warn('Speicher konnte nicht geladen werden',e)}return defaultData()}
 let db=load();
-let ui={page:'dashboard',charId:db.characters[0]?.id||null,selection:{},search:{},taskFilter:'open',variables:{AZ:'',KZ:'',NAME:'',ORT:'',SUSPECT:'',DURCHSUCHUNGSZIEL:'',GEGENSTAND:'',PARAGRAPH:'',TICKETNUMMER:'',ZEUGE:'',TATORT:'',INDIZIEN:''},timeResult:null,boardZoom:1,boardPanX:0,boardPanY:0,pendingNodeImage:null};
+let ui={page:'dashboard',charId:db.characters[0]?.id||null,selection:{},search:{},taskFilter:'open',variables:{AZ:'',KZ:'',NAME:'',ORT:'',SUSPECT:'',DURCHSUCHUNGSZIEL:'',GEGENSTAND:'',PARAGRAPH:'',TICKETNUMMER:'',ZEUGE:'',TATORT:'',INDIZIEN:'',FAHRZEUG:'',KENNZEICHEN:'',SACHVERHALT:'',SAMMELAKTE:''},timeResult:null,boardZoom:1,boardPanX:0,boardPanY:0,pendingNodeImage:null};
 function persist(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(db));return true}catch(e){toast('Speichern fehlgeschlagen. Browser-Speicher prüfen oder Backup exportieren.',true);return false}}
 function toast(message,error=false){const target=$('#toasts');const item=document.createElement('div');item.className='toast'+(error?' error':'');item.textContent=message;target.append(item);setTimeout(()=>item.remove(),3800)}
 const char = () => db.characters.find(c=>c.id===ui.charId)||db.characters[0]||null;
@@ -382,7 +388,7 @@ function pageMinigolf(){
  const totals=current.players.map(player=>{const strokes=player.scores.reduce((sum,score)=>sum+(Number(score)||0),0);const par=current.holes.reduce((sum,hole,index)=>sum+(player.scores[index]?Number(hole.par)||2:0),0);const played=player.scores.filter(score=>Number(score)>0).length;return {player,strokes,par,played}}).sort((a,b)=>(a.played?0:1)-(b.played?0:1)||a.strokes-b.strokes);
  const holesHeader=current.holes.map((hole,index)=>`<th>${index+1}</th>`).join('');
  const parRow=`<tr class="golf-par-row"><th>Par</th>${current.holes.map((hole,index)=>`<td><input aria-label="Par Bahn ${index+1}" type="number" min="1" max="5" value="${Number(hole.par)||2}" data-golf-par data-round-id="${esc(current.id)}" data-hole-index="${index}"></td>`).join('')}<td>–</td><td>–</td></tr>`;
- const playerRows=current.players.map(({id:playerId,name,scores=[]})=>{const total=totals.find(item=>item.player.id===playerId);return `<tr><th>${esc(name)}<small>${total.played}/${current.holes.length} gespielt</small></th>${current.holes.map((hole,index)=>`<td><input aria-label="${esc(name)}, Bahn ${index+1}" type="number" min="1" max="20" placeholder="–" value="${Number(scores[index])||''}" data-golf-score data-round-id="${esc(current.id)}" data-player-id="${esc(playerId)}" data-hole-index="${index}"></td>`).join('')}<td><strong>${total.strokes||'–'}</strong></td><td>${total.played?`${total.strokes-total.par>0?'+':''}${total.strokes-total.par}`:'–'}</td></tr>`}).join('');
+ const playerRows=current.players.map(({id:playerId,name,scores=[]})=>{const total=totals.find(item=>item.player.id===playerId);return `<tr><th>${esc(name)}<small>${total.played}/${current.holes.length} gespielt</small></th>${current.holes.map((hole,index)=>{const score=Number(scores[index])||0;return `<td><div class="golf-score-controls"><button type="button" class="golf-shot-button" data-action="golf-stroke" data-round-id="${esc(current.id)}" data-player-id="${esc(playerId)}" data-hole-index="${index}" aria-label="${esc(name)}, Bahn ${index+1}: ${score} Schläge. Schlag hinzufügen"><strong>${score||'–'}</strong><small>+1</small></button>${score?`<button type="button" class="golf-undo-button" data-action="golf-undo" data-round-id="${esc(current.id)}" data-player-id="${esc(playerId)}" data-hole-index="${index}" aria-label="${esc(name)}, Bahn ${index+1}: einen Schlag zurücknehmen">−</button>`:''}</div></td>`}).join('')}<td><strong>${total.strokes||'–'}</strong></td><td>${total.played?`${total.strokes-total.par>0?'+':''}${total.strokes-total.par}`:'–'}</td></tr>`}).join('');
  return `${head('Minigolf-Tracking','Schlag für Schlag zur Übersicht. Alle Eingaben werden automatisch lokal gespeichert.',btn('delete-golf-round','Runde löschen','button-danger button-small',`data-id="${esc(current.id)}"`))}<div class="list-detail"><section class="panel list-pane">${headlinePanel('Runden')}<form data-form="golf-create" class="form-grid">${field('Platz / Runde','course','','text','required maxlength="80" placeholder="z. B. Stadtpark"')}<div class="field"><label>Bahnen</label><select name="holes"><option value="9">9 Bahnen</option><option value="18">18 Bahnen</option></select></div><div class="field full"><label>Spielerinnen und Spieler</label><input name="players" required placeholder="Namen mit Komma trennen"></div><div class="field full"><button class="button">${ico('plus',15)} Runde starten</button></div></form><hr class="section-separator"><div class="entry-list">${roundRows}</div></section><section class="panel detail-pane">${headlinePanel(esc(current.course),badge(`${current.holes.length} Bahnen · ${formatDate(current.createdAt)}`))}<div class="table-wrap golf-table-wrap"><table class="mini-table golf-table"><thead><tr><th>Spieler</th>${holesHeader}<th>Gesamt</th><th>± Par</th></tr></thead><tbody>${parRow}${playerRows}</tbody></table></div><div class="section-caption mt-18">ZWISCHENSTAND</div><div class="line-list">${totals.map((item,index)=>`<div class="line-item"><div class="line-item-main"><strong>${index+1}. ${esc(item.player.name)}</strong><small>${item.played}/${current.holes.length} Bahnen</small></div><strong>${item.strokes||'–'} ${item.played?`<span class="hint">(${item.strokes-item.par>0?'+':''}${item.strokes-item.par})</span>`:''}</strong></div>`).join('')}</div></section></div>`;
 }
 const SNIPPET_FIELDS = [
@@ -395,6 +401,10 @@ const SNIPPET_FIELDS = [
  ['TATORT', 'Tatort / Ort', '[TATORT]'],
  ['INDIZIEN', 'Indizien (Auflistung)', '[INDIZIEN]'],
  ['AZ', 'Aktenzeichen', '[AZ]'],
+ ['FAHRZEUG', 'Fahrzeugmodell', '[FAHRZEUG]'],
+ ['KENNZEICHEN', 'Kennzeichen', '[KENNZEICHEN]'],
+ ['SACHVERHALT', 'Sachverhalt / Begründung', '[SACHVERHALT]'],
+ ['SAMMELAKTE', 'Sammelakte', '[SAMMELAKTE]'],
  ['NAME', 'Name (Antragsteller / Beamter)', '[NAME]']
 ];
 
@@ -417,6 +427,10 @@ function resolvedSnippet(s){
   INDIZIEN: ui.variables.INDIZIEN || '[INDIZIEN]',
   AZ: ui.variables.AZ || '[AZ]',
   KZ: ui.variables.KZ || '[KZ]',
+  FAHRZEUG: ui.variables.FAHRZEUG || '[FAHRZEUG]',
+  KENNZEICHEN: ui.variables.KENNZEICHEN || '[KENNZEICHEN]',
+  SACHVERHALT: ui.variables.SACHVERHALT || '[SACHVERHALT]',
+  SAMMELAKTE: ui.variables.SAMMELAKTE || '[SAMMELAKTE]',
   NAME: ui.variables.NAME || defaultName || '[NAME]'
  };
 
@@ -490,6 +504,7 @@ function handleForm(f){const kind=f.dataset.form;if(!kind)return;const currentCh
  }
 }
 function handleAction(el){const action=el.dataset.action, value=el.dataset.value, itemId=el.dataset.id;
+ if(action==='golf-stroke'||action==='golf-undo'){const round=collectionItem('minigolf',el.dataset.roundId),holeIndex=Number(el.dataset.holeIndex),player=round?.players.find(item=>item.id===el.dataset.playerId);if(!player||!Number.isInteger(holeIndex)||holeIndex<0||holeIndex>=round.holes.length)return;const currentScore=Number(player.scores[holeIndex])||0;if(action==='golf-stroke'){if(currentScore>=20){toast('Maximal 20 Schläge pro Bahn.',true);return}player.scores[holeIndex]=currentScore+1}else{if(currentScore<=0)return;player.scores[holeIndex]=currentScore===1?null:currentScore-1}persist();render();return}
  if(action==='delete-golf-round'){const round=collectionItem('minigolf',itemId);if(!round||!confirm(`Minigolf-Runde „${round.course}“ löschen?`))return;db.minigolf=db.minigolf.filter(item=>item.id!==itemId);ui.selection.minigolf=null;saveAndRender('Minigolf-Runde gelöscht.');return}
  if(action==='refresh-lease'){render();return}
  if(action.startsWith('go-')){setPage(action.slice(3));return}
@@ -571,7 +586,7 @@ function handleAction(el){const action=el.dataset.action, value=el.dataset.value
 document.addEventListener('click',e=>{const boardImage=e.target.closest?.('#board-svg image');if(boardImage){const node=sel('boards')?.nodes.find(item=>item.id===boardImage.closest('[data-node-id]')?.dataset.nodeId);if(node?.image)openImageViewer(node.image,node.label);return}const nav=e.target.closest('[data-nav]');if(nav){setPage(nav.dataset.nav);return}const select=e.target.closest('[data-select]');if(select){ui.selection[select.dataset.select]=select.dataset.id;render();return}const a=e.target.closest('[data-action]');if(a){handleAction(a);return}});
 document.addEventListener('submit',e=>{const f=e.target.closest('[data-form]');if(!f)return;e.preventDefault();handleForm(f)});
 function autosave(t){
- if(t.matches('[data-golf-score],[data-golf-par]')){const round=collectionItem('minigolf',t.dataset.roundId),holeIndex=Number(t.dataset.holeIndex);if(!round||!Number.isInteger(holeIndex)||!round.holes[holeIndex])return;const value=t.value===''?null:Number(t.value);if(value!==null&&(!Number.isFinite(value)||value<1||value>(t.hasAttribute('data-golf-par')?5:20)))return;if(t.hasAttribute('data-golf-par'))round.holes[holeIndex].par=value??2;else{const player=round.players.find(item=>item.id===t.dataset.playerId);if(!player)return;player.scores[holeIndex]=value}persist();return}
+ if(t.matches('[data-golf-par]')){const round=collectionItem('minigolf',t.dataset.roundId),holeIndex=Number(t.dataset.holeIndex),value=Number(t.value);if(!round||!Number.isInteger(holeIndex)||!round.holes[holeIndex]||!Number.isFinite(value)||value<1||value>5)return;round.holes[holeIndex].par=value;persist();return}
  if(t.matches('[data-board-name]')){const b=sel('boards');if(b&&b.id===t.dataset.boardName&&t.value.trim()){b.name=t.value;persist();const opt=$('#board-choice').selectedOptions[0];if(opt)opt.textContent=t.value}return}
  if(t.matches('[data-bind]')){
   const v=t.hasAttribute('data-number')?Number(t.value):t.value;
@@ -615,7 +630,7 @@ document.addEventListener('input',e=>{const t=e.target;
  autosave(t);
 });
 document.addEventListener('change',async e=>{const t=e.target;
- if(t.matches('[data-golf-score],[data-golf-par]')){render();return}
+ if(t.matches('[data-golf-par]')){render();return}
  if(t.id==='character-select'){ui.charId=t.value;ui.selection={};render();return}
  if(t.id==='board-choice'){ui.selection.boards=t.value;ui.selection.node=null;render();return}
  if(t.matches('[data-board-dim]')){
