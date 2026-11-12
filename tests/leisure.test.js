@@ -55,7 +55,8 @@ test('Changelog ist ohne Charakter erreichbar und zeigt die aktuelle Version',()
  assert.equal(a.elements['#app-version'].textContent,'v1.2');
  a.click('[data-nav]',{nav:'changelog'});
  assert.match(a.elements['#content'].innerHTML,/Version 1\.2/);
- assert.match(a.elements['#content'].innerHTML,/Release-Befehl gemeinsam aktualisieren/);
+ assert.match(a.elements['#content'].innerHTML,/Changelog-Reiter sowie ein Release-Befehl/);
+ assert.match(a.elements['#content'].innerHTML,/Version 1\.1/);
 });
 
 test('Lager, Rechner und Finanzen sind bearbeitbar und nach Charakter getrennt',()=>{
