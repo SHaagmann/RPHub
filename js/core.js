@@ -3,11 +3,11 @@ window.RPDesk = (() => {
 'use strict';
 const STORAGE_KEY = 'rp-desk-data-v1';
 const VERSION = 1;
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 4;
 const ENTITY_TYPES = ['case','person','vehicle','organization','evidence','note','task','deadline','location','event','board'];
 const CATEGORIES = [
   {heading:'ALLGEMEIN',items:[['dashboard','Übersicht','home'],['characters','Charaktere','users'],['settings','Tool-Einstellungen','check'],['changelog','Changelog','file']]},
-  {heading:'PD-HUB',items:[['board','Ermittlungs-Pinnwand','network'],['interviews','Vernehmungen','file'],['evidence','Evidence-Vergleich','search'],['timeline','Einsatz-Timeline','calendar'],['snippets','Beschlussvorlagen','copy']]},
+  {heading:'PD-HUB',items:[['cases','Ermittlungsakten','file'],['directory','Personen & Fahrzeuge','users'],['deadlines','Fristen','calendar'],['map','RP-Karte','pin'],['board','Ermittlungs-Pinnwand','network'],['interviews','Vernehmungen','file'],['evidence','Evidence-Vergleich','search'],['timeline','Einsatz-Timeline','calendar'],['snippets','Beschlussvorlagen','copy']]},
   {heading:'FREIZEIT',items:[['inventory','Lager & Rechner','wallet'],['finances','Einnahmen & Ausgaben','wallet'],['minigolf','Minigolf-Tracking','flag']]},
   {heading:'ORGANISATION & TOOLS',items:[['tasks','Aufgaben','check'],['notes','Notizen','note'],['leases','Leasing & Raten','wallet'],['time','Zeitrechner','clock']]}
 ];
@@ -28,7 +28,8 @@ const ICONS = {
   arrow:'<path d="M4 12h16m-7-7 7 7-7 7"/>',
   trash:'<path d="M3 6h18M8 6V4h8v2m3 0-1 15H6L5 6M10 10v7M14 10v7"/>',
   alert:'<path d="M12 2 2 21h20zM12 9v4M12 17h.01"/>',
-  search:'<circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/>'
+  search:'<circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/>',
+  pin:'<path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/>'
 };
 const ico = (name, size=18) => `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]||ICONS.note}</svg>`;
 const $ = (s,root=document) => root.querySelector(s);
@@ -110,6 +111,8 @@ function applyTheme(charObjOrColor){
  root.style.setProperty('--card-hi', cardHi);
  root.style.setProperty('--input-bg', inputBg);
  root.style.setProperty('--border', border);
+ const themeMeta=document.querySelector('meta[name="theme-color"]');
+ if(themeMeta)themeMeta.setAttribute('content',accent);
 }
 function compressImage(file, maxDimension = 1600, quality = 0.82){
  return new Promise((resolve, reject) => {
@@ -211,6 +214,56 @@ function validRelationship(relationship){
   && (relationship.description === undefined || typeof relationship.description === 'string')
   && typeof relationship.createdAt === 'string';
 }
+const LEGACY_ENTITY_TYPES={boards:'board',interviews:'event',leases:'vehicle',notes:'note',timeline:'event',tasks:'task',snippets:'note',evidence:'evidence',evidenceReports:'evidence',inventory:'evidence',finances:'event',minigolf:'event'};
+const LEGACY_SEARCH_FIELDS={
+ boards:['name'],interviews:['subject','caseNumber','location','participants','notes'],leases:['vehicle','plate'],
+ notes:['title','body'],timeline:['title','category','caseNumber','details'],tasks:['title','details','due'],
+ snippets:['title','body'],evidence:['caseId','weaponType','serialNumber','suspect','notes'],
+ evidenceReports:['caseId1','caseId2','result','reportId'],inventory:['name'],finances:['description','type','date'],minigolf:['course']
+};
+function legacyFields(collection,record){
+ const fields={legacyCollection:collection,legacyId:record.id};
+ for(const key of LEGACY_SEARCH_FIELDS[collection]||[]){
+  const value=record[key];
+  if(typeof value==='string'||typeof value==='number')fields[key]=value;
+ }
+ if(collection==='tasks')fields.done=Boolean(record.done);
+ if(collection==='inventory'){fields.quantity=record.quantity;fields.price=record.price}
+ return fields;
+}
+function syncLegacyEntities(data){
+ if(!Array.isArray(data.entities))data.entities=[];
+ if(!Array.isArray(data.relationships))data.relationships=[];
+ const sources=new Map();
+ for(const [collection,type] of Object.entries(LEGACY_ENTITY_TYPES)){
+  for(const record of Array.isArray(data[collection])?data[collection]:[]){
+   if(typeof record?.id!=='string')continue;
+   sources.set(`${collection}:${record.id}`,{collection,type,record});
+  }
+ }
+ const bySource=new Map();
+ for(const entity of data.entities){
+  const key=`${entity.fields?.legacyCollection}:${entity.fields?.legacyId}`;
+  if(entity.fields?.legacyCollection&&entity.fields?.legacyId&&sources.has(key)&&!bySource.has(key))bySource.set(key,entity);
+ }
+ for(const [key,{collection,type,record}] of sources){
+  const fields={legacyCollection:collection,legacyId:record.id},existing=bySource.get(key);
+  if(existing){
+   const changed=existing.charId!==(record.charId||null);
+   existing.fields=fields;
+   existing.charId=record.charId||null;
+   if(changed){const sourceTime=Date.parse(record.updatedAt||'');existing.updatedAt=Number.isFinite(sourceTime)&&sourceTime>Date.parse(existing.updatedAt)?new Date(sourceTime).toISOString():new Date().toISOString()}
+  }else{
+   const createdAt=record.createdAt||record.updatedAt||new Date().toISOString();
+   data.entities.push({id:uid('entity'),type,charId:record.charId||null,createdAt,updatedAt:record.updatedAt||createdAt,fields});
+  }
+ }
+ const removedIds=new Set(data.entities.filter(entity=>entity.fields?.legacyCollection&&entity.fields?.legacyId&&!sources.has(`${entity.fields.legacyCollection}:${entity.fields.legacyId}`)).map(entity=>entity.id));
+ if(removedIds.size){
+  data.entities=data.entities.filter(entity=>!removedIds.has(entity.id));
+  data.relationships=data.relationships.filter(relationship=>!removedIds.has(relationship.sourceId)&&!removedIds.has(relationship.targetId));
+ }
+}
 function validImport(v){
  if(!isRecord(v)||v.version!==VERSION
   ||(v.schemaVersion!==undefined&&(!Number.isInteger(v.schemaVersion)||v.schemaVersion<1||v.schemaVersion>SCHEMA_VERSION))
@@ -238,11 +291,20 @@ function migrateData(data){
    migrated.relationships=Array.isArray(migrated.relationships)?migrated.relationships:[];
    version=2;
    migrated.schemaVersion=version;
+  }else if(version===2){
+   syncLegacyEntities(migrated);
+   version=3;
+   migrated.schemaVersion=version;
+  }else if(version===3){
+   for(const item of migrated.entities||[])if(item.fields?.legacyCollection&&item.fields?.legacyId)item.fields={legacyCollection:item.fields.legacyCollection,legacyId:item.fields.legacyId};
+   version=4;
+   migrated.schemaVersion=version;
   }else throw new Error(`Nicht unterstützte Speicherversion: ${version}`);
  }
  migrated.schemaVersion=SCHEMA_VERSION;
  for(const key of ['contacts','duties','plates','radio'])delete migrated[key];
  for(const key of OPTIONAL_COLLECTIONS)if(!Array.isArray(migrated[key]))migrated[key]=[];
+ syncLegacyEntities(migrated);
  return migrated;
 }
 function normalizeData(data){return migrateData(data)}
@@ -260,13 +322,90 @@ let db=load();
 let ui={page:'dashboard',charId:db.characters[0]?.id||null,selection:{},search:{},taskFilter:'open',variables:{AZ:'',KZ:'',NAME:'',ORT:'',SUSPECT:'',DURCHSUCHUNGSZIEL:'',GEGENSTAND:'',PARAGRAPH:'',TICKETNUMMER:'',ZEUGE:'',TATORT:'',INDIZIEN:'',FAHRZEUG:'',KENNZEICHEN:'',SACHVERHALT:'',SAMMELAKTE:''},timeResult:null,boardZoom:1,boardPanX:0,boardPanY:0,pendingNodeImage:null};
 function persist(){
  if(persistenceBlocked){toast('Speichern blockiert: Unbekannte oder beschädigte vorhandene Daten wurden geschützt. Importiere ein Backup oder setze die Daten nach Prüfung bewusst zurück.',true);return false}
- try{localStorage.setItem(STORAGE_KEY,JSON.stringify(db));return true}catch(error){toast('Speichern fehlgeschlagen. Browser-Speicher prüfen oder Backup exportieren.',true);return false}
+ try{syncLegacyEntities(db);localStorage.setItem(STORAGE_KEY,JSON.stringify(db));return true}catch(error){toast('Speichern fehlgeschlagen. Browser-Speicher prüfen oder Backup exportieren.',true);return false}
 }
 function toast(message,error=false){const target=$('#toasts');const item=document.createElement('div');item.className='toast'+(error?' error':'');item.textContent=message;target.append(item);setTimeout(()=>item.remove(),3800)}
 const char = () => db.characters.find(c=>c.id===ui.charId)||db.characters[0]||null;
 const toolVisible = page => CATEGORIES[0].items.some(([id])=>id===page)||!char()?.hiddenTools?.includes(page);
 const scoped = name => db[name].filter(x=>x.charId===char()?.id);
 const collectionItem=(name,itemId)=>db[name].find(x=>x.id===itemId && x.charId===char()?.id);
+function entity(idValue){return db.entities.find(item=>item.id===idValue)||null}
+function entityForLegacy(collection,itemId){return db.entities.find(item=>item.fields?.legacyCollection===collection&&item.fields?.legacyId===itemId)||null}
+function entityFields(item){
+ const collection=item?.fields?.legacyCollection,legacyId=item?.fields?.legacyId;
+ if(collection&&legacyId&&Array.isArray(db[collection])){
+  const source=db[collection].find(record=>record.id===legacyId);
+  if(source)return legacyFields(collection,source);
+ }
+ return item?.fields||{};
+}
+function entityLabel(item){
+ const f=entityFields(item);
+ return f.title||f.name||f.subject||f.caseNumber||f.plate||f.caseId||f.vehicle||f.description||f.course||item?.type||'Datensatz';
+}
+function entityDescription(item){
+ const f=entityFields(item);
+ return f.description||f.details||f.notes||f.body||f.plate||f.caseNumber||'';
+}
+function visibleEntity(item,characterId=char()?.id){
+ return item&&(item.charId===null||item.charId===characterId);
+}
+function createEntity(type,characterId,fields={}){
+ if(!ENTITY_TYPES.includes(type)||!(characterId===null||db.characters.some(item=>item.id===characterId))||!isRecord(fields))throw new Error('Ungültiger Datensatz.');
+ const now=new Date().toISOString();
+ const item={id:uid('entity'),type,charId:characterId,createdAt:now,updatedAt:now,fields:{...fields}};
+ db.entities.push(item);
+ return item;
+}
+function updateEntity(entityId,fields){
+ const item=entity(entityId);
+ if(!item||!visibleEntity(item)||!isRecord(fields))throw new Error('Datensatz nicht gefunden oder nicht bearbeitbar.');
+ if(item.fields.legacyCollection)throw new Error('Dieser Datensatz wird vom bestehenden Modul verwaltet.');
+ item.fields={...item.fields,...fields};
+ item.updatedAt=new Date().toISOString();
+ return item;
+}
+function linkEntities(sourceId,targetId,type,description=''){
+ const source=entity(sourceId),target=entity(targetId),label=String(type||'').trim();
+ if(!source||!target||!visibleEntity(source)||!visibleEntity(target)||!label||source.id===target.id)throw new Error('Ungültige Verknüpfung.');
+ if(source.charId&&target.charId&&source.charId!==target.charId)throw new Error('Datensätze unterschiedlicher Charaktere können nicht verknüpft werden.');
+ const samePair=db.relationships.find(item=>(item.sourceId===sourceId&&item.targetId===targetId||item.sourceId===targetId&&item.targetId===sourceId)&&item.type===label);
+ if(samePair)return samePair;
+ const relationship={id:uid('relationship'),sourceId,targetId,type:label,description:String(description||'').trim(),createdAt:new Date().toISOString()};
+ db.relationships.push(relationship);
+ return relationship;
+}
+function unlinkRelationship(relationshipId){
+ const before=db.relationships.length;
+ db.relationships=db.relationships.filter(item=>item.id!==relationshipId);
+ return before!==db.relationships.length;
+}
+function relatedEntities(entityId){
+ return db.relationships.filter(item=>item.sourceId===entityId||item.targetId===entityId).map(relationship=>{
+  const other=entity(relationship.sourceId===entityId?relationship.targetId:relationship.sourceId);
+  return other?{relationship,entity:other}:null;
+ }).filter(Boolean);
+}
+function searchEntities(query,{type='',characterId=char()?.id,allCharacters=false}={}){
+ const terms=String(query||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().split(/\s+/).filter(Boolean);
+ if(!terms.length)return [];
+ const clean=value=>String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+ const compact=value=>clean(value).replace(/[\s-]/g,'');
+ return db.entities.map(item=>{
+  if((type&&item.type!==type)||(!allCharacters&&!visibleEntity(item,characterId)))return null;
+  const fields=entityFields(item),values=[];const collect=value=>{if(typeof value==='string'||typeof value==='number')values.push(String(value));else if(Array.isArray(value))value.forEach(collect)};Object.values(fields).forEach(collect);
+  const text=values.join(' '),normalized=clean(text),flat=compact(text);
+  if(!terms.every(term=>normalized.includes(term)||flat.includes(compact(term))))return null;
+  let score=0;
+  for(const term of terms){
+   if(clean(entityLabel(item)).startsWith(term))score+=8;
+   else if(clean(entityLabel(item)).includes(term))score+=5;
+   else if(flat.includes(compact(term)))score+=3;
+   else score++;
+  }
+  return {entity:item,score};
+ }).filter(Boolean).sort((a,b)=>b.score-a.score||b.entity.updatedAt.localeCompare(a.entity.updatedAt)).map(result=>result.entity);
+}
 function sel(name){const entries=scoped(name);const existing=entries.find(e=>e.id===ui.selection[name]);if(existing)return existing;ui.selection[name]=entries[0]?.id||null;return entries[0]||null;}
 function layoutBoardImages(){
  const svg=$('#board-svg');
@@ -317,7 +456,7 @@ function copyText(txt){if(navigator.clipboard?.writeText&&location.protocol!=='f
 function fallbackCopy(text){const t=document.createElement('textarea');t.value=text;t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);t.select();try{if(!document.execCommand('copy'))throw Error('Kopieren nicht unterstützt');toast('In Zwischenablage kopiert.')}catch(e){toast('Kopieren nicht möglich – bitte HTTPS verwenden.',true)}t.remove()}
 function download(filename,text,type='text/plain'){const blob=new Blob([text],{type});const url=URL.createObjectURL(blob);const anchor=document.createElement('a');anchor.href=url;anchor.download=filename;document.body.appendChild(anchor);anchor.click();anchor.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 function dataField(collection,name,value,itemId){let it=collectionItem(collection,itemId);if(!it)return;it[name]=value;if(collection==='notes')it.updatedAt=new Date().toISOString();persist()}
-function status(priority){return priority==='high'?'<span class="badge badge-red">Hoch</span>':priority==='low'?'<span class="badge">Niedrig</span>':'<span class="badge badge-amber">Normal</span>'}
+function status(priority){return priority==='critical'?'<span class="badge badge-red">Kritisch</span>':priority==='high'?'<span class="badge badge-red">Hoch</span>':priority==='low'?'<span class="badge">Niedrig</span>':'<span class="badge badge-amber">Normal</span>'}
 function val(f,key){return String(new FormData(f).get(key)||'').trim()}
 function headlinePanel(text,right=''){return `<div class="panel-head"><h2>${text}</h2>${right}</div>`}
 function listPane(name,items,labelFn,subtitleFn,addText,createForm,searchKey){let q=(ui.search[searchKey]||'').toLowerCase();const visible=items.filter(it=>JSON.stringify([labelFn(it),subtitleFn(it)]).toLowerCase().includes(q));return `<section class="panel list-pane">${headlinePanel(addText)}${createForm}<hr class="section-separator"><input class="search-field" type="search" data-search="${searchKey}" placeholder="Einträge suchen …" value="${esc(ui.search[searchKey]||'')}"><div class="entry-list">${visible.map(it=>`<button class="entry ${sel(name)?.id===it.id?'selected':''}" data-select="${name}" data-id="${esc(it.id)}"><strong>${esc(labelFn(it))}</strong><small>${esc(subtitleFn(it))}</small></button>`).join('')||empty('Keine passenden Einträge.')}</div></section>`;}
@@ -332,5 +471,5 @@ function replaceData(data){
  persistenceBlocked=false;
  return db;
 }
-return {CATEGORIES,TITLES,ICONS,ico,$,esc,id,today,datetimeLocal,formatDate,fmtMoney,empty,field,textareaField,btn,head,uid,THEME_PRESETS,hexToRgb,rgbToHex,mixColors,applyTheme,compressImage,defaultSnippetsForChar,defaultData,SCHEMA_VERSION,ENTITY_TYPES,REQUIRED_COLLECTIONS,OPTIONAL_COLLECTIONS,validImport,normalizeData,load,db,ui,persist,toast,char,toolVisible,scoped,collectionItem,sel,layoutBoardImages,openImageViewer,updateImageViewer,changeImageZoom,copyText,fallbackCopy,download,dataField,status,val,headlinePanel,listPane,renderDateTimeMeta,badge,replaceData};
+return {CATEGORIES,TITLES,ICONS,ico,$,esc,id,today,datetimeLocal,formatDate,fmtMoney,empty,field,textareaField,btn,head,uid,THEME_PRESETS,hexToRgb,rgbToHex,mixColors,applyTheme,compressImage,defaultSnippetsForChar,defaultData,SCHEMA_VERSION,ENTITY_TYPES,REQUIRED_COLLECTIONS,OPTIONAL_COLLECTIONS,validImport,normalizeData,load,db,ui,persist,toast,char,toolVisible,scoped,collectionItem,entity,entityForLegacy,entityFields,entityLabel,entityDescription,visibleEntity,createEntity,updateEntity,linkEntities,unlinkRelationship,relatedEntities,searchEntities,sel,layoutBoardImages,openImageViewer,updateImageViewer,changeImageZoom,copyText,fallbackCopy,download,dataField,status,val,headlinePanel,listPane,renderDateTimeMeta,badge,replaceData};
 })();

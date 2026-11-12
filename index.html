@@ -5,16 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#0b1019" />
   <meta name="description" content="RP Desk – deine lokale Toolbox für Rollenspiel, Charaktere, Ermittlungen und Alltag." />
+  <meta name="application-name" content="RP Desk" />
   <title>RP Desk · Deine lokale RP-Toolbox</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="styles.css?v=1.2" />
-  <script src="js/core.js?v=1.2" defer></script>
-  <script src="js/pages/dashboard.js?v=1.2" defer></script>
-  <script src="js/pages/changelog.js?v=1.2" defer></script>
-  <script src="js/pages/investigations.js?v=1.2" defer></script>
-  <script src="js/pages/workspace.js?v=1.2" defer></script>
-  <script src="js/pages/leisure.js?v=1.2" defer></script>
-  <script src="app.js?v=1.2" defer></script>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css?v=2.1" />
+  <script src="js/core.js?v=2.1" defer></script>
+  <script src="js/pages/dashboard.js?v=2.1" defer></script>
+  <script src="js/pages/changelog.js?v=2.1" defer></script>
+  <script src="js/pages/investigations.js?v=2.1" defer></script>
+  <script src="js/pages/workspace.js?v=2.1" defer></script>
+  <script src="js/pages/leisure.js?v=2.1" defer></script>
+  <script src="js/pages/records.js?v=2.1" defer></script>
+  <script src="js/pages/map-engine.js?v=2.1" defer></script>
+  <script src="js/pages/map.js?v=2.1" defer></script>
+  <script src="app.js?v=2.1" defer></script>
 </head>
 <body>
   <div class="app" id="app">
@@ -28,13 +33,26 @@
     <div class="workspace">
       <header class="topbar">
         <div class="topbar-left"><button class="icon-button mobile-menu" id="mobile-menu" aria-label="Menü öffnen">☰</button><div class="breadcrumb"><span>RP DESK</span><span class="crumb-slash">/</span><strong id="current-page-name">Übersicht</strong></div></div>
-        <div class="topbar-actions"><span class="local-indicator">● <span>PRIVATE WORKSPACE</span></span><label class="topbar-select-label" for="character-select">CHARAKTER</label><select id="character-select" aria-label="Aktiver Charakter"></select><button class="button button-quiet" data-action="export" title="Alle Daten als JSON sichern"><span class="btn-icon">↓</span><span class="hide-small">Backup</span></button></div>
+        <div class="topbar-actions"><span class="local-indicator">● <span>PRIVATE WORKSPACE</span></span><button class="button button-quiet" data-action="open-search" title="Globale Suche öffnen (Strg+K / Cmd+K)">⌕ <span class="hide-small">Suchen</span></button><label class="topbar-select-label" for="character-select">CHARAKTER</label><select id="character-select" aria-label="Aktiver Charakter"></select><button class="button button-quiet" data-action="export" title="Alle Daten als JSON sichern"><span class="btn-icon">↓</span><span class="hide-small">Backup</span></button></div>
       </header>
       <main class="content" id="content"></main>
       <footer class="footer">RP DESK · Alle Daten bleiben in deinem Browser. Kein Server, kein Tracking.</footer>
     </div>
   </div>
   <input type="file" id="backup-import" accept=".json,application/json" hidden />
+  <dialog class="global-search-dialog" id="global-search-dialog" aria-labelledby="global-search-title">
+    <div class="search-dialog-head"><div><h2 id="global-search-title">Globale Suche</h2><p>Durchsuche Akten, Personen, Fahrzeuge, Kennzeichen und weitere Datensätze.</p></div><button class="icon-button" type="button" data-search-close aria-label="Suche schließen">×</button></div>
+    <input class="search-field global-search-input" data-global-search type="search" placeholder="Suchbegriff eingeben …" autocomplete="off" aria-controls="global-search-results" />
+    <div class="form-grid search-filters"><div class="field"><label>Datensatztyp</label><select class="control" data-search-type><option value="">Alle Typen</option><option value="case">Akten</option><option value="person">Personen</option><option value="vehicle">Fahrzeuge</option><option value="organization">Gruppierungen</option><option value="evidence">Beweismittel</option><option value="note">Notizen</option><option value="task">Aufgaben</option><option value="deadline">Fristen</option><option value="location">Standorte</option><option value="event">Ereignisse</option><option value="board">Pinnwände</option></select></div><div class="field"><label>Charakter</label><select class="control" data-search-character><option value="current">Aktiver Charakter</option><option value="all">Alle Charaktere</option></select></div></div>
+    <div id="global-search-results" class="global-search-results" role="listbox" aria-label="Suchergebnisse"></div>
+    <div class="search-dialog-foot"><span>↑ ↓ navigieren</span><span>Enter öffnen</span><span>Esc schließen</span><kbd>Ctrl / ⌘ K</kbd></div>
+  </dialog>
+    <dialog class="global-search-dialog backup-preview-dialog" id="backup-preview-dialog" aria-labelledby="backup-preview-title">
+      <div class="search-dialog-head"><div><h2 id="backup-preview-title">Backup importieren</h2><p>Prüfe die Datei und wähle, wie sie übernommen werden soll.</p></div><button class="icon-button" type="button" data-action="cancel-backup-import" aria-label="Import schließen">×</button></div>
+      <div class="panel panel-pad" id="backup-preview-content"></div>
+      <div class="form-actions backup-preview-actions"><button class="button button-quiet" data-action="cancel-backup-import">Abbrechen</button><button class="button button-quiet" data-action="confirm-import-merge">Zusammenführen</button><button class="button" data-action="confirm-import-replace">Ersetzen</button></div>
+    </dialog>
+  <div class="update-notice" id="app-update-notice" hidden>Eine neue Version von RP Desk ist verfügbar. <button class="button button-small" data-action="reload-app">Neu laden</button></div>
   <dialog class="image-viewer" id="image-viewer" aria-label="Bildansicht">
     <div class="image-viewer-layout">
       <div class="image-viewer-toolbar">
