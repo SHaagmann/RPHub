@@ -23,6 +23,12 @@ Statische Website ohne Build-Schritt, Backend, externe Bibliotheken oder Trackin
 - `app.js` verbindet die Seiten mit Navigation, Formularen, Aktionen und Eingabeereignissen.
 - `index.html` lädt die klassischen Skripte in Abhängigkeitsreihenfolge. Dadurch bleibt die App auch direkt über `file://` nutzbar.
 
+## Datenmodell und Migration
+
+Das bestehende Datenformat (`version: 1`) bleibt für bisherige Backups kompatibel. Ein separates `schemaVersion`-Feld versioniert die lokale Datenstruktur; beim Laden wird ein älterer gültiger Datenstand schrittweise ergänzt, ohne vorhandene Modul-Datensätze umzuschreiben. Die aktuelle Grundlage (`schemaVersion: 2`) reserviert zentrale Sammlungen für typisierte Entitäten und Beziehungen. Die bisherigen Module bleiben bis zu ihrer schrittweisen Integration die Quelle ihrer Daten, damit diese Umstellung keine bestehende Funktion oder Nutzerdaten gefährdet.
+
+Der Speicherzugriff ist in `js/core.js` zentral gebündelt und bleibt vorerst synchron über localStorage, da die Oberfläche direkt auf diese Daten zugreift. Wenn vorhandene Daten beschädigt sind oder eine unbekannte Version haben, werden sie beim Start nicht überschrieben; die App meldet den blockierten Speichervorgang. Ein gültiges Backup kann importiert oder der lokale Datenstand nach ausdrücklicher Bestätigung zurückgesetzt werden. Tests lassen sich ohne zusätzliche Abhängigkeiten mit `node --test` ausführen.
+
 ## GitHub Pages – ohne Build
 
 1. Neues GitHub-Repository anlegen, z. B. `rp-desk`.

@@ -8,7 +8,7 @@ function app(initialData) {
  const listeners = {};
  const elements = {};
  const storage = {};
- if(initialData)storage['rp-desk-data-v1']=JSON.stringify(initialData);
+ if(initialData)storage['rp-desk-data-v1']=typeof initialData==='string'?initialData:JSON.stringify(initialData);
  function element(selector) {
   if(!elements[selector])elements[selector]={
    innerHTML:'',textContent:'',value:'',dataset:{},style:{setProperty(){}},
@@ -27,7 +27,7 @@ function app(initialData) {
  const context = vm.createContext({
   window,document,localStorage:{getItem:key=>storage[key]||null,setItem:(key,value)=>{storage[key]=value}},
   FormData:class {constructor(form){this.values=form.values} get(key){return this.values[key]??null}},
-  confirm:()=>true,console,setTimeout(){},navigator:{},location:{protocol:'file:'},Intl,Date,Math,JSON,Number,String,Set,Map
+  confirm:()=>true,console:{warn(){}},setTimeout(){},navigator:{},location:{protocol:'file:'},Intl,Date,Math,JSON,Number,String,Set,Map
  });
  for(const file of ['js/core.js','js/pages/dashboard.js','js/pages/investigations.js','js/pages/workspace.js','js/pages/leisure.js','app.js']) {
   vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),context,{filename:file});
@@ -125,6 +125,52 @@ test('Ältere Backups bleiben lesbar und neue Daten überstehen einen Neustart',
  assert.equal(legacy.rp.toolVisible('evidence'),true);
  saved.inventory=[{id:'bad'}];
  assert.equal(Boolean(reloaded.rp.validImport(saved)),false);
+});
+
+test('Schema-Migration ergänzt die Architekturversion idempotent und erhält alte Sammlungen',()=>{
+ const legacy={
+  version:1,
+  characters:[{id:'char-1',name:'A'}],
+  boards:[],interviews:[],leases:[],notes:[{id:'note-1',charId:'char-1',title:'Alt',body:'Notiz'}],
+  timeline:[],tasks:[],snippets:[],minigolf:[]
+ };
+ const migrated=app(legacy);
+ assert.equal(migrated.rp.db.schemaVersion,2);
+ assert.deepEqual(JSON.parse(JSON.stringify(migrated.rp.db.entities)),[]);
+ assert.deepEqual(JSON.parse(JSON.stringify(migrated.rp.db.relationships)),[]);
+ assert.equal(migrated.rp.db.notes[0].body,'Notiz');
+ const stored=JSON.parse(migrated.storage['rp-desk-data-v1']);
+ assert.equal(stored.schemaVersion,2);
+
+ const reloaded=app(stored);
+ assert.equal(reloaded.rp.db.schemaVersion,2);
+ assert.equal(reloaded.rp.db.notes[0].id,'note-1');
+ assert.equal(reloaded.rp.db.notes.length,1);
+});
+
+test('Ungültige oder unbekannte gespeicherte Daten werden beim Start nicht überschrieben',()=>{
+ const raw=JSON.stringify({version:99,characters:[{id:'char-1',name:'A'}]});
+ const a=app(raw);
+ assert.equal(a.storage['rp-desk-data-v1'],raw);
+ assert.equal(a.rp.persist(),false);
+ assert.equal(a.storage['rp-desk-data-v1'],raw);
+
+ a.rp.replaceData(a.rp.defaultData());
+ assert.equal(a.rp.persist(),true);
+ assert.equal(JSON.parse(a.storage['rp-desk-data-v1']).schemaVersion,2);
+});
+
+test('Zentrale Entitäten und Beziehungen werden im Backup strukturell validiert',()=>{
+ const a=app();
+ const backup=a.rp.defaultData();
+ backup.entities=[{id:'entity-1',type:'person',charId:null,createdAt:'2026-01-01T00:00:00.000Z',updatedAt:'2026-01-01T00:00:00.000Z',fields:{name:'A'}}];
+ backup.relationships=[{id:'link-1',sourceId:'entity-1',targetId:'entity-1',type:'related',createdAt:'2026-01-01T00:00:00.000Z'}];
+ assert.equal(a.rp.validImport(backup),true);
+ backup.relationships[0].targetId='missing-entity';
+ assert.equal(a.rp.validImport(backup),false);
+ backup.relationships[0].targetId='entity-1';
+ backup.entities[0].type='unknown';
+ assert.equal(a.rp.validImport(backup),false);
 });
 
 test('Backup-Import ersetzt den Datenstand und Charakterlöschung entfernt nur eigene Einträge',async()=>{

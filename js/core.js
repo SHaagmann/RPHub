@@ -3,6 +3,8 @@ window.RPDesk = (() => {
 'use strict';
 const STORAGE_KEY = 'rp-desk-data-v1';
 const VERSION = 1;
+const SCHEMA_VERSION = 2;
+const ENTITY_TYPES = ['case','person','vehicle','organization','evidence','note','task','deadline','location','event','board'];
 const CATEGORIES = [
   {heading:'ALLGEMEIN',items:[['dashboard','Übersicht','home'],['characters','Charaktere','users'],['settings','Tool-Einstellungen','check']]},
   {heading:'PD-HUB',items:[['board','Ermittlungs-Pinnwand','network'],['interviews','Vernehmungen','file'],['evidence','Evidence-Vergleich','search'],['timeline','Einsatz-Timeline','calendar'],['snippets','Beschlussvorlagen','copy']]},
@@ -171,6 +173,7 @@ function defaultSnippetsForChar(charId, authorName){
   }
 const defaultData = () => ({
  version: VERSION,
+ schemaVersion: SCHEMA_VERSION,
  characters: [],
  boards: [],
  interviews: [],
@@ -183,16 +186,82 @@ const defaultData = () => ({
   evidence: [],
   evidenceReports: [],
   inventory: [],
-  finances: []
+  finances: [],
+  entities: [],
+  relationships: []
 });
 const REQUIRED_COLLECTIONS = ['characters','boards','interviews','leases','notes','timeline','tasks','snippets','minigolf'];
 const OPTIONAL_COLLECTIONS = ['minigolf','evidence','evidenceReports','inventory','finances'];
-function validImport(v){return v&&typeof v==='object'&&v.version===VERSION&&REQUIRED_COLLECTIONS.filter(k=>k!=='minigolf').every(k=>Array.isArray(v[k]))&&OPTIONAL_COLLECTIONS.every(k=>v[k]===undefined||Array.isArray(v[k]))&&Array.isArray(v.characters)&&v.characters.every(c=>typeof c?.id==='string'&&typeof c?.name==='string'&&(c.hiddenTools===undefined||(Array.isArray(c.hiddenTools)&&c.hiddenTools.every(t=>typeof t==='string'))))&&v.boards.every(b=>Array.isArray(b?.nodes)&&Array.isArray(b?.edges))&&(!v.inventory||v.inventory.every(i=>typeof i?.id==='string'&&typeof i.charId==='string'&&typeof i.name==='string'&&Number.isInteger(i.quantity)&&i.quantity>=0&&i.quantity<=100000&&Number.isFinite(i.price)&&i.price>=0&&i.price<=1000000&&Math.abs(i.price*100-Math.round(i.price*100))<0.000001))&&(!v.finances||v.finances.every(i=>typeof i?.id==='string'&&typeof i.charId==='string'&&typeof i.description==='string'&&['income','expense'].includes(i.type)&&Number.isFinite(i.amount)&&i.amount>=0.01&&i.amount<=1000000&&Math.abs(i.amount*100-Math.round(i.amount*100))<0.000001&&typeof i.date==='string'));}
-function normalizeData(data){for(const key of ['contacts','duties','plates','radio'])delete data[key];for(const key of OPTIONAL_COLLECTIONS)if(!Array.isArray(data[key]))data[key]=[];return data}
-function load(){try{let raw=localStorage.getItem(STORAGE_KEY);if(raw){let data=JSON.parse(raw);if(validImport(data))return normalizeData(data);}}catch(e){console.warn('Speicher konnte nicht geladen werden',e)}return defaultData()}
+const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+function validEntity(entity){
+ return isRecord(entity)
+  && typeof entity.id === 'string' && entity.id.length > 0
+  && ENTITY_TYPES.includes(entity.type)
+  && (entity.charId === null || typeof entity.charId === 'string')
+  && typeof entity.createdAt === 'string'
+  && typeof entity.updatedAt === 'string'
+  && isRecord(entity.fields);
+}
+function validRelationship(relationship){
+ return isRecord(relationship)
+  && typeof relationship.id === 'string' && relationship.id.length > 0
+  && typeof relationship.sourceId === 'string' && relationship.sourceId.length > 0
+  && typeof relationship.targetId === 'string' && relationship.targetId.length > 0
+  && typeof relationship.type === 'string' && relationship.type.length > 0
+  && (relationship.description === undefined || typeof relationship.description === 'string')
+  && typeof relationship.createdAt === 'string';
+}
+function validImport(v){
+ if(!isRecord(v)||v.version!==VERSION
+  ||(v.schemaVersion!==undefined&&(!Number.isInteger(v.schemaVersion)||v.schemaVersion<1||v.schemaVersion>SCHEMA_VERSION))
+  ||!REQUIRED_COLLECTIONS.filter(k=>k!=='minigolf').every(k=>Array.isArray(v[k]))
+  ||!OPTIONAL_COLLECTIONS.every(k=>v[k]===undefined||Array.isArray(v[k]))
+  ||!Array.isArray(v.characters)
+  ||!v.characters.every(c=>typeof c?.id==='string'&&typeof c?.name==='string'&&(c.hiddenTools===undefined||(Array.isArray(c.hiddenTools)&&c.hiddenTools.every(t=>typeof t==='string'))))
+  ||!v.boards.every(b=>Array.isArray(b?.nodes)&&Array.isArray(b?.edges))
+  ||(v.entities!==undefined&&(!Array.isArray(v.entities)||!v.entities.every(validEntity)))
+  ||(v.relationships!==undefined&&(!Array.isArray(v.relationships)||!v.relationships.every(validRelationship)))
+  ||(v.entities||[]).some(entity=>entity.charId!==null&&!v.characters.some(character=>character.id===entity.charId))
+  ||(v.inventory&&!v.inventory.every(i=>typeof i?.id==='string'&&typeof i.charId==='string'&&typeof i.name==='string'&&Number.isInteger(i.quantity)&&i.quantity>=0&&i.quantity<=100000&&Number.isFinite(i.price)&&i.price>=0&&i.price<=1000000&&Math.abs(i.price*100-Math.round(i.price*100))<0.000001))
+  ||(v.finances&&!v.finances.every(i=>typeof i?.id==='string'&&typeof i.charId==='string'&&typeof i.description==='string'&&['income','expense'].includes(i.type)&&Number.isFinite(i.amount)&&i.amount>=0.01&&i.amount<=1000000&&Math.abs(i.amount*100-Math.round(i.amount*100))<0.000001&&typeof i.date==='string')))return false;
+ const ids=[...(v.entities||[]),...(v.relationships||[])].map(item=>item.id);
+ const entityIds=new Set((v.entities||[]).map(entity=>entity.id));
+ return new Set(ids).size===ids.length
+  &&(v.relationships||[]).every(relationship=>entityIds.has(relationship.sourceId)&&entityIds.has(relationship.targetId));
+}
+function migrateData(data){
+ const migrated={...data};
+ let version=migrated.schemaVersion??1;
+ while(version<SCHEMA_VERSION){
+  if(version===1){
+   migrated.entities=Array.isArray(migrated.entities)?migrated.entities:[];
+   migrated.relationships=Array.isArray(migrated.relationships)?migrated.relationships:[];
+   version=2;
+   migrated.schemaVersion=version;
+  }else throw new Error(`Nicht unterstützte Speicherversion: ${version}`);
+ }
+ migrated.schemaVersion=SCHEMA_VERSION;
+ for(const key of ['contacts','duties','plates','radio'])delete migrated[key];
+ for(const key of OPTIONAL_COLLECTIONS)if(!Array.isArray(migrated[key]))migrated[key]=[];
+ return migrated;
+}
+function normalizeData(data){return migrateData(data)}
+let persistenceBlocked=false;
+function load(){
+ let raw;
+ try{raw=localStorage.getItem(STORAGE_KEY)}catch(error){persistenceBlocked=true;console.warn('Lokaler Speicher konnte nicht gelesen werden',error);return defaultData()}
+ if(raw===null)return defaultData();
+ let data;
+ try{data=JSON.parse(raw)}catch(error){persistenceBlocked=true;console.warn('Lokale Daten sind kein gültiges JSON und wurden beibehalten',error);return defaultData()}
+ if(!validImport(data)){persistenceBlocked=true;console.warn('Lokale Daten haben ein unbekanntes Format und wurden beibehalten');return defaultData()}
+ try{return migrateData(data)}catch(error){persistenceBlocked=true;console.warn('Lokale Daten konnten nicht migriert werden und wurden beibehalten',error);return defaultData()}
+}
 let db=load();
 let ui={page:'dashboard',charId:db.characters[0]?.id||null,selection:{},search:{},taskFilter:'open',variables:{AZ:'',KZ:'',NAME:'',ORT:'',SUSPECT:'',DURCHSUCHUNGSZIEL:'',GEGENSTAND:'',PARAGRAPH:'',TICKETNUMMER:'',ZEUGE:'',TATORT:'',INDIZIEN:'',FAHRZEUG:'',KENNZEICHEN:'',SACHVERHALT:'',SAMMELAKTE:''},timeResult:null,boardZoom:1,boardPanX:0,boardPanY:0,pendingNodeImage:null};
-function persist(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(db));return true}catch(e){toast('Speichern fehlgeschlagen. Browser-Speicher prüfen oder Backup exportieren.',true);return false}}
+function persist(){
+ if(persistenceBlocked){toast('Speichern blockiert: Unbekannte oder beschädigte vorhandene Daten wurden geschützt. Importiere ein Backup oder setze die Daten nach Prüfung bewusst zurück.',true);return false}
+ try{localStorage.setItem(STORAGE_KEY,JSON.stringify(db));return true}catch(error){toast('Speichern fehlgeschlagen. Browser-Speicher prüfen oder Backup exportieren.',true);return false}
+}
 function toast(message,error=false){const target=$('#toasts');const item=document.createElement('div');item.className='toast'+(error?' error':'');item.textContent=message;target.append(item);setTimeout(()=>item.remove(),3800)}
 const char = () => db.characters.find(c=>c.id===ui.charId)||db.characters[0]||null;
 const toolVisible = page => CATEGORIES[0].items.some(([id])=>id===page)||!char()?.hiddenTools?.includes(page);
@@ -256,10 +325,12 @@ function renderDateTimeMeta(v){return formatDate(v,true)}
 function badge(text,kind=''){return `<span class="badge ${kind?'badge-'+kind:''}">${esc(text)}</span>`}
 
 function replaceData(data){
+ if(!validImport(data))throw new Error('Datenformat oder Speicherversion ist ungültig.');
  const normalized=normalizeData(data);
  for(const key of Object.keys(db))delete db[key];
  Object.assign(db,normalized);
+ persistenceBlocked=false;
  return db;
 }
-return {CATEGORIES,TITLES,ICONS,ico,$,esc,id,today,datetimeLocal,formatDate,fmtMoney,empty,field,textareaField,btn,head,uid,THEME_PRESETS,hexToRgb,rgbToHex,mixColors,applyTheme,compressImage,defaultSnippetsForChar,defaultData,REQUIRED_COLLECTIONS,OPTIONAL_COLLECTIONS,validImport,normalizeData,load,db,ui,persist,toast,char,toolVisible,scoped,collectionItem,sel,layoutBoardImages,openImageViewer,updateImageViewer,changeImageZoom,copyText,fallbackCopy,download,dataField,status,val,headlinePanel,listPane,renderDateTimeMeta,badge,replaceData};
+return {CATEGORIES,TITLES,ICONS,ico,$,esc,id,today,datetimeLocal,formatDate,fmtMoney,empty,field,textareaField,btn,head,uid,THEME_PRESETS,hexToRgb,rgbToHex,mixColors,applyTheme,compressImage,defaultSnippetsForChar,defaultData,SCHEMA_VERSION,ENTITY_TYPES,REQUIRED_COLLECTIONS,OPTIONAL_COLLECTIONS,validImport,normalizeData,load,db,ui,persist,toast,char,toolVisible,scoped,collectionItem,sel,layoutBoardImages,openImageViewer,updateImageViewer,changeImageZoom,copyText,fallbackCopy,download,dataField,status,val,headlinePanel,listPane,renderDateTimeMeta,badge,replaceData};
 })();
