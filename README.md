@@ -15,6 +15,7 @@ Statische Website ohne Build-Schritt, Backend, externe Bibliotheken oder Trackin
 - Lagerbestand mit Mengen, Stückpreisen und Gesamtwert sowie ein separater Kostenrechner
 - Einnahmen und Ausgaben mit Saldo und bearbeitbarer Buchungshistorie
 - Getrennte Charakterprofile; JSON-Backup und -Wiederherstellung
+- Changelog mit Versionshistorie und automatischer Versionspflege
 
 ## Quellcode-Aufteilung
 
@@ -43,6 +44,17 @@ python -m http.server 8000
 ```
 
 Dann `http://localhost:8000` öffnen.
+
+## Version und Changelog
+
+Nach einer Änderung einen kleinen Release-Schritt mit `minor` oder eine größere Überarbeitung mit `major` anlegen. Der Befehl erhöht die Version, ergänzt den Changelog und aktualisiert die Cache-Buster in `index.html` gemeinsam:
+
+```bash
+node scripts/release.js minor "Kurze Beschreibung der Neuerung"
+node scripts/release.js major "Kurze Beschreibung der größeren Überarbeitung"
+```
+
+`minor` zählt zum Beispiel von `1.2` auf `1.3` hoch; `major` wechselt von `1.3` auf `2.0`. Der Changelog-Eintrag wird mit dem aktuellen Datum erstellt. Änderungen werden damit nicht automatisch erkannt oder beschrieben: Der Release-Befehl wird bewusst nach den Änderungen mit einer passenden Zusammenfassung ausgeführt.
 
 ## Wo liegen meine Daten?
 

@@ -29,7 +29,7 @@ function app(initialData) {
   FormData:class {constructor(form){this.values=form.values} get(key){return this.values[key]??null}},
   confirm:()=>true,console:{warn(){}},setTimeout(){},navigator:{},location:{protocol:'file:'},Intl,Date,Math,JSON,Number,String,Set,Map
  });
- for(const file of ['js/core.js','js/pages/dashboard.js','js/pages/investigations.js','js/pages/workspace.js','js/pages/leisure.js','app.js']) {
+ for(const file of ['js/core.js','js/pages/dashboard.js','js/pages/changelog.js','js/pages/investigations.js','js/pages/workspace.js','js/pages/leisure.js','app.js']) {
   vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),context,{filename:file});
  }
  function submit(kind,values,id) {
@@ -48,6 +48,15 @@ function app(initialData) {
  }
  return {rp:window.RPDesk,submit,click,change,visibility,elements,storage};
 }
+
+test('Changelog ist ohne Charakter erreichbar und zeigt die aktuelle Version',()=>{
+ const a=app();
+ assert.match(a.elements['#navigation'].innerHTML,/data-nav="changelog"/);
+ assert.equal(a.elements['#app-version'].textContent,'v1.2');
+ a.click('[data-nav]',{nav:'changelog'});
+ assert.match(a.elements['#content'].innerHTML,/Version 1\.2/);
+ assert.match(a.elements['#content'].innerHTML,/Release-Befehl gemeinsam aktualisieren/);
+});
 
 test('Lager, Rechner und Finanzen sind bearbeitbar und nach Charakter getrennt',()=>{
  const a=app();

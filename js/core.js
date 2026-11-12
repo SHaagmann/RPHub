@@ -6,7 +6,7 @@ const VERSION = 1;
 const SCHEMA_VERSION = 2;
 const ENTITY_TYPES = ['case','person','vehicle','organization','evidence','note','task','deadline','location','event','board'];
 const CATEGORIES = [
-  {heading:'ALLGEMEIN',items:[['dashboard','Übersicht','home'],['characters','Charaktere','users'],['settings','Tool-Einstellungen','check']]},
+  {heading:'ALLGEMEIN',items:[['dashboard','Übersicht','home'],['characters','Charaktere','users'],['settings','Tool-Einstellungen','check'],['changelog','Changelog','file']]},
   {heading:'PD-HUB',items:[['board','Ermittlungs-Pinnwand','network'],['interviews','Vernehmungen','file'],['evidence','Evidence-Vergleich','search'],['timeline','Einsatz-Timeline','calendar'],['snippets','Beschlussvorlagen','copy']]},
   {heading:'FREIZEIT',items:[['inventory','Lager & Rechner','wallet'],['finances','Einnahmen & Ausgaben','wallet'],['minigolf','Minigolf-Tracking','flag']]},
   {heading:'ORGANISATION & TOOLS',items:[['tasks','Aufgaben','check'],['notes','Notizen','note'],['leases','Leasing & Raten','wallet'],['time','Zeitrechner','clock']]}

@@ -2,14 +2,15 @@
 'use strict';
 const {CATEGORIES,TITLES,ICONS,ico,$,esc,id,today,datetimeLocal,formatDate,fmtMoney,empty,field,textareaField,btn,head,uid,THEME_PRESETS,hexToRgb,rgbToHex,mixColors,applyTheme,compressImage,defaultSnippetsForChar,defaultData,REQUIRED_COLLECTIONS,OPTIONAL_COLLECTIONS,validImport,normalizeData,load,db,ui,persist,toast,char,scoped,collectionItem,sel,layoutBoardImages,openImageViewer,updateImageViewer,changeImageZoom,copyText,fallbackCopy,download,dataField,status,val,headlinePanel,listPane,renderDateTimeMeta,badge,replaceData}=window.RPDesk;
 const {toolVisible}=window.RPDesk;
-const pageModules=Object.assign({},window.RPDeskPages.dashboard,window.RPDeskPages.investigations,window.RPDeskPages.workspace,window.RPDeskPages.leisure);
-const {pageDashboard,pageCharacters,pageSettings,pageBoard,interviewReport,pageInterviews,evidencePairKey,evidenceResultLabel,evidenceResultKind,parseEvidenceLabReport,pageEvidence,leaseCalc,pageLeases,pageNotes,pageTime,pageMinigolf,pageSnippets,pageTimeline,pageTasks,pageInventory,pageFinances}=pageModules;
-const pages={dashboard:pageDashboard,characters:pageCharacters,settings:pageSettings,board:pageBoard,interviews:pageInterviews,evidence:pageEvidence,leases:pageLeases,notes:pageNotes,time:pageTime,minigolf:pageMinigolf,snippets:pageSnippets,timeline:pageTimeline,tasks:pageTasks,inventory:pageInventory,finances:pageFinances};
+const pageModules=Object.assign({},window.RPDeskPages.dashboard,window.RPDeskPages.changelog,window.RPDeskPages.investigations,window.RPDeskPages.workspace,window.RPDeskPages.leisure);
+const {APP_VERSION,pageDashboard,pageChangelog,pageCharacters,pageSettings,pageBoard,interviewReport,pageInterviews,evidencePairKey,evidenceResultLabel,evidenceResultKind,parseEvidenceLabReport,pageEvidence,leaseCalc,pageLeases,pageNotes,pageTime,pageMinigolf,pageSnippets,pageTimeline,pageTasks,pageInventory,pageFinances}=pageModules;
+const pages={dashboard:pageDashboard,changelog:pageChangelog,characters:pageCharacters,settings:pageSettings,board:pageBoard,interviews:pageInterviews,evidence:pageEvidence,leases:pageLeases,notes:pageNotes,time:pageTime,minigolf:pageMinigolf,snippets:pageSnippets,timeline:pageTimeline,tasks:pageTasks,inventory:pageInventory,finances:pageFinances};
 function setPage(page){if(!TITLES[page]||!toolVisible(page))return;ui.page=page;$('#sidebar').classList.remove('open');$('#sidebar-backdrop').classList.remove('show');render();window.scrollTo({top:0,behavior:'auto'});}
 function renderNavigation(){let html='';for(const group of CATEGORIES){const items=group.items.filter(([page])=>toolVisible(page));if(!items.length)continue;html+=`<div class="nav-group"><div class="nav-group-label">${esc(group.heading)}</div>`;for(const [p,title,icon] of items)html+=`<button class="nav-item ${ui.page===p?'active':''}" data-nav="${p}" ${ui.page===p?'aria-current="page"':''}>${ico(icon)}<span>${esc(title)}</span></button>`;html+='</div>'; }$('#navigation').innerHTML=html;}
 function render(){
  if(db.characters.length>0){if(!char())ui.charId=db.characters[0].id;applyTheme(char());}else{ui.charId=null;applyTheme('#8aa6ff');}
  if(!toolVisible(ui.page))ui.page='dashboard';
+ $('#app-version').textContent=`v${APP_VERSION}`;
  renderNavigation();$('#current-page-name').textContent=TITLES[ui.page];
  $('#character-select').innerHTML=db.characters.length>0?db.characters.map(c=>`<option value="${esc(c.id)}" ${c.id===ui.charId?'selected':''}>${esc(c.name)}</option>`).join(''):'<option value="" disabled selected>Kein Charakter</option>';
  $('#content').innerHTML=(pages[ui.page]||pageDashboard)();layoutBoardImages();
