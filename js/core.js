@@ -4,10 +4,10 @@ window.RPDesk = (() => {
 const STORAGE_KEY = 'rp-desk-data-v1';
 const VERSION = 1;
 const CATEGORIES = [
-  {heading:'ALLGEMEIN',items:[['dashboard','Übersicht','home'],['characters','Charaktere','users']]},
-  {heading:'ERMITTLUNGEN',items:[['board','Ermittlungs-Pinnwand','network'],['interviews','Vernehmungen','file'],['evidence','Evidence-Vergleich','search']]},
-  {heading:'ORGANISATION',items:[['tasks','Aufgaben','check'],['notes','Notizen','note'],['timeline','Einsatz-Timeline','calendar']]},
-  {heading:'TOOLS',items:[['leases','Leasing & Raten','wallet'],['time','Zeitrechner','clock'],['minigolf','Minigolf-Tracking','flag'],['snippets','Beschlussvorlagen','copy']]}
+  {heading:'ALLGEMEIN',items:[['dashboard','Übersicht','home'],['characters','Charaktere','users'],['settings','Tool-Einstellungen','check']]},
+  {heading:'PD-HUB',items:[['board','Ermittlungs-Pinnwand','network'],['interviews','Vernehmungen','file'],['evidence','Evidence-Vergleich','search'],['timeline','Einsatz-Timeline','calendar'],['snippets','Beschlussvorlagen','copy']]},
+  {heading:'FREIZEIT',items:[['inventory','Lager & Rechner','wallet'],['finances','Einnahmen & Ausgaben','wallet'],['minigolf','Minigolf-Tracking','flag']]},
+  {heading:'ORGANISATION & TOOLS',items:[['tasks','Aufgaben','check'],['notes','Notizen','note'],['leases','Leasing & Raten','wallet'],['time','Zeitrechner','clock']]}
 ];
 const TITLES = Object.fromEntries(CATEGORIES.flatMap(g=>g.items.map(([id,title])=>[id,title])));
 const ICONS = {
@@ -181,11 +181,13 @@ const defaultData = () => ({
   snippets: [],
   minigolf: [],
   evidence: [],
-  evidenceReports: []
+  evidenceReports: [],
+  inventory: [],
+  finances: []
 });
 const REQUIRED_COLLECTIONS = ['characters','boards','interviews','leases','notes','timeline','tasks','snippets','minigolf'];
-const OPTIONAL_COLLECTIONS = ['minigolf','evidence','evidenceReports'];
-function validImport(v){return v&&typeof v==='object'&&v.version===VERSION&&REQUIRED_COLLECTIONS.filter(k=>k!=='minigolf').every(k=>Array.isArray(v[k]))&&OPTIONAL_COLLECTIONS.every(k=>v[k]===undefined||Array.isArray(v[k]))&&Array.isArray(v.characters)&&v.characters.every(c=>typeof c?.id==='string'&&typeof c?.name==='string')&&v.boards.every(b=>Array.isArray(b?.nodes)&&Array.isArray(b?.edges));}
+const OPTIONAL_COLLECTIONS = ['minigolf','evidence','evidenceReports','inventory','finances'];
+function validImport(v){return v&&typeof v==='object'&&v.version===VERSION&&REQUIRED_COLLECTIONS.filter(k=>k!=='minigolf').every(k=>Array.isArray(v[k]))&&OPTIONAL_COLLECTIONS.every(k=>v[k]===undefined||Array.isArray(v[k]))&&Array.isArray(v.characters)&&v.characters.every(c=>typeof c?.id==='string'&&typeof c?.name==='string'&&(c.hiddenTools===undefined||(Array.isArray(c.hiddenTools)&&c.hiddenTools.every(t=>typeof t==='string'))))&&v.boards.every(b=>Array.isArray(b?.nodes)&&Array.isArray(b?.edges))&&(!v.inventory||v.inventory.every(i=>typeof i?.id==='string'&&typeof i.charId==='string'&&typeof i.name==='string'&&Number.isInteger(i.quantity)&&i.quantity>=0&&i.quantity<=100000&&Number.isFinite(i.price)&&i.price>=0&&i.price<=1000000&&Math.abs(i.price*100-Math.round(i.price*100))<0.000001))&&(!v.finances||v.finances.every(i=>typeof i?.id==='string'&&typeof i.charId==='string'&&typeof i.description==='string'&&['income','expense'].includes(i.type)&&Number.isFinite(i.amount)&&i.amount>=0.01&&i.amount<=1000000&&Math.abs(i.amount*100-Math.round(i.amount*100))<0.000001&&typeof i.date==='string'));}
 function normalizeData(data){for(const key of ['contacts','duties','plates','radio'])delete data[key];for(const key of OPTIONAL_COLLECTIONS)if(!Array.isArray(data[key]))data[key]=[];return data}
 function load(){try{let raw=localStorage.getItem(STORAGE_KEY);if(raw){let data=JSON.parse(raw);if(validImport(data))return normalizeData(data);}}catch(e){console.warn('Speicher konnte nicht geladen werden',e)}return defaultData()}
 let db=load();
@@ -193,6 +195,7 @@ let ui={page:'dashboard',charId:db.characters[0]?.id||null,selection:{},search:{
 function persist(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(db));return true}catch(e){toast('Speichern fehlgeschlagen. Browser-Speicher prüfen oder Backup exportieren.',true);return false}}
 function toast(message,error=false){const target=$('#toasts');const item=document.createElement('div');item.className='toast'+(error?' error':'');item.textContent=message;target.append(item);setTimeout(()=>item.remove(),3800)}
 const char = () => db.characters.find(c=>c.id===ui.charId)||db.characters[0]||null;
+const toolVisible = page => CATEGORIES[0].items.some(([id])=>id===page)||!char()?.hiddenTools?.includes(page);
 const scoped = name => db[name].filter(x=>x.charId===char()?.id);
 const collectionItem=(name,itemId)=>db[name].find(x=>x.id===itemId && x.charId===char()?.id);
 function sel(name){const entries=scoped(name);const existing=entries.find(e=>e.id===ui.selection[name]);if(existing)return existing;ui.selection[name]=entries[0]?.id||null;return entries[0]||null;}
@@ -258,5 +261,5 @@ function replaceData(data){
  Object.assign(db,normalized);
  return db;
 }
-return {CATEGORIES,TITLES,ICONS,ico,$,esc,id,today,datetimeLocal,formatDate,fmtMoney,empty,field,textareaField,btn,head,uid,THEME_PRESETS,hexToRgb,rgbToHex,mixColors,applyTheme,compressImage,defaultSnippetsForChar,defaultData,REQUIRED_COLLECTIONS,OPTIONAL_COLLECTIONS,validImport,normalizeData,load,db,ui,persist,toast,char,scoped,collectionItem,sel,layoutBoardImages,openImageViewer,updateImageViewer,changeImageZoom,copyText,fallbackCopy,download,dataField,status,val,headlinePanel,listPane,renderDateTimeMeta,badge,replaceData};
+return {CATEGORIES,TITLES,ICONS,ico,$,esc,id,today,datetimeLocal,formatDate,fmtMoney,empty,field,textareaField,btn,head,uid,THEME_PRESETS,hexToRgb,rgbToHex,mixColors,applyTheme,compressImage,defaultSnippetsForChar,defaultData,REQUIRED_COLLECTIONS,OPTIONAL_COLLECTIONS,validImport,normalizeData,load,db,ui,persist,toast,char,toolVisible,scoped,collectionItem,sel,layoutBoardImages,openImageViewer,updateImageViewer,changeImageZoom,copyText,fallbackCopy,download,dataField,status,val,headlinePanel,listPane,renderDateTimeMeta,badge,replaceData};
 })();

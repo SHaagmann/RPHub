@@ -1,21 +1,45 @@
 (() => {
 'use strict';
 const {CATEGORIES,TITLES,ICONS,ico,$,esc,id,today,datetimeLocal,formatDate,fmtMoney,empty,field,textareaField,btn,head,uid,THEME_PRESETS,hexToRgb,rgbToHex,mixColors,applyTheme,compressImage,defaultSnippetsForChar,defaultData,REQUIRED_COLLECTIONS,OPTIONAL_COLLECTIONS,validImport,normalizeData,load,db,ui,persist,toast,char,scoped,collectionItem,sel,layoutBoardImages,openImageViewer,updateImageViewer,changeImageZoom,copyText,fallbackCopy,download,dataField,status,val,headlinePanel,listPane,renderDateTimeMeta,badge,replaceData}=window.RPDesk;
-const pageModules=Object.assign({},window.RPDeskPages.dashboard,window.RPDeskPages.investigations,window.RPDeskPages.workspace);
-const {pageDashboard,pageCharacters,pageBoard,interviewReport,pageInterviews,evidencePairKey,evidenceResultLabel,evidenceResultKind,parseEvidenceLabReport,pageEvidence,leaseCalc,pageLeases,pageNotes,pageTime,pageMinigolf,pageSnippets,pageTimeline,pageTasks}=pageModules;
-const pages={dashboard:pageDashboard,characters:pageCharacters,board:pageBoard,interviews:pageInterviews,evidence:pageEvidence,leases:pageLeases,notes:pageNotes,time:pageTime,minigolf:pageMinigolf,snippets:pageSnippets,timeline:pageTimeline,tasks:pageTasks};
-function setPage(page){if(!TITLES[page])return;ui.page=page;$('#sidebar').classList.remove('open');$('#sidebar-backdrop').classList.remove('show');render();window.scrollTo({top:0,behavior:'auto'});}
-function renderNavigation(){let html='';for(const group of CATEGORIES){html+=`<div class="nav-group"><div class="nav-group-label">${esc(group.heading)}</div>`;for(const [p,title,icon] of group.items)html+=`<button class="nav-item ${ui.page===p?'active':''}" data-nav="${p}" ${ui.page===p?'aria-current="page"':''}>${ico(icon)}<span>${esc(title)}</span></button>`;html+='</div>'; }$('#navigation').innerHTML=html;}
+const {toolVisible}=window.RPDesk;
+const pageModules=Object.assign({},window.RPDeskPages.dashboard,window.RPDeskPages.investigations,window.RPDeskPages.workspace,window.RPDeskPages.leisure);
+const {pageDashboard,pageCharacters,pageSettings,pageBoard,interviewReport,pageInterviews,evidencePairKey,evidenceResultLabel,evidenceResultKind,parseEvidenceLabReport,pageEvidence,leaseCalc,pageLeases,pageNotes,pageTime,pageMinigolf,pageSnippets,pageTimeline,pageTasks,pageInventory,pageFinances}=pageModules;
+const pages={dashboard:pageDashboard,characters:pageCharacters,settings:pageSettings,board:pageBoard,interviews:pageInterviews,evidence:pageEvidence,leases:pageLeases,notes:pageNotes,time:pageTime,minigolf:pageMinigolf,snippets:pageSnippets,timeline:pageTimeline,tasks:pageTasks,inventory:pageInventory,finances:pageFinances};
+function setPage(page){if(!TITLES[page]||!toolVisible(page))return;ui.page=page;$('#sidebar').classList.remove('open');$('#sidebar-backdrop').classList.remove('show');render();window.scrollTo({top:0,behavior:'auto'});}
+function renderNavigation(){let html='';for(const group of CATEGORIES){const items=group.items.filter(([page])=>toolVisible(page));if(!items.length)continue;html+=`<div class="nav-group"><div class="nav-group-label">${esc(group.heading)}</div>`;for(const [p,title,icon] of items)html+=`<button class="nav-item ${ui.page===p?'active':''}" data-nav="${p}" ${ui.page===p?'aria-current="page"':''}>${ico(icon)}<span>${esc(title)}</span></button>`;html+='</div>'; }$('#navigation').innerHTML=html;}
 function render(){
  if(db.characters.length>0){if(!char())ui.charId=db.characters[0].id;applyTheme(char());}else{ui.charId=null;applyTheme('#8aa6ff');}
+ if(!toolVisible(ui.page))ui.page='dashboard';
  renderNavigation();$('#current-page-name').textContent=TITLES[ui.page];
  $('#character-select').innerHTML=db.characters.length>0?db.characters.map(c=>`<option value="${esc(c.id)}" ${c.id===ui.charId?'selected':''}>${esc(c.name)}</option>`).join(''):'<option value="" disabled selected>Kein Charakter</option>';
  $('#content').innerHTML=(pages[ui.page]||pageDashboard)();layoutBoardImages();
 }
-function saveAndRender(message){persist();render();if(message)toast(message)}
+function saveAndRender(message){const saved=persist();render();if(saved&&message)toast(message)}
+function clearLeisureState(){ui.editInventory=null;ui.editFinance=null;ui.costCalculation=null}
 function removeItem(collection,itemId){const it=collectionItem(collection,itemId);if(!it||!confirm('Eintrag wirklich löschen? Diese Aktion kann nur über ein Backup rückgängig gemacht werden.'))return;db[collection]=db[collection].filter(x=>x.id!==itemId);if(ui.selection[collection]===itemId)delete ui.selection[collection];saveAndRender('Eintrag gelöscht.');}
 function handleForm(f){const kind=f.dataset.form;if(!kind)return;const currentChar=char()?.id;
  switch(kind){
+ case 'inventory-save':
+ case 'cost-calculate': {
+  if(!currentChar)return;
+  const rawQuantity=val(f,'quantity'),rawPrice=val(f,'price'),quantity=Number(rawQuantity),price=Number(rawPrice);
+  if(!rawQuantity||!rawPrice||!Number.isInteger(quantity)||quantity<0||quantity>100000||!Number.isFinite(price)||price<0||price>1000000||Math.abs(price*100-Math.round(price*100))>0.000001){toast('Bitte eine gültige Menge und einen Stückpreis mit höchstens zwei Nachkommastellen eingeben.',true);return}
+  if(kind==='cost-calculate'){ui.costCalculation={quantity,price,total:quantity*Math.round(price*100)/100};render();break}
+  const name=val(f,'name');if(!name){toast('Bitte einen Artikelnamen eingeben.',true);return}
+  const item=f.dataset.id?collectionItem('inventory',f.dataset.id):null;
+  if(f.dataset.id&&!item){toast('Artikel nicht gefunden.',true);return}
+  if(item)Object.assign(item,{name,quantity,price});else db.inventory.push({id:uid('inventory'),charId:currentChar,name,quantity,price});
+  ui.editInventory=null;saveAndRender('Artikel gespeichert.');break
+ }
+ case 'finance-save': {
+  if(!currentChar)return;
+  const description=val(f,'description'),type=val(f,'type'),rawAmount=val(f,'amount'),amount=Number(rawAmount),date=val(f,'date');
+  if(!description||!['income','expense'].includes(type)||!rawAmount||!Number.isFinite(amount)||amount<0.01||amount>1000000||Math.abs(amount*100-Math.round(amount*100))>0.000001||!date){toast('Bitte eine gültige Buchung mit Betrag und Datum eingeben.',true);return}
+  const item=f.dataset.id?collectionItem('finances',f.dataset.id):null;
+  if(f.dataset.id&&!item){toast('Buchung nicht gefunden.',true);return}
+  if(item)Object.assign(item,{description,type,amount,date});else db.finances.push({id:uid('finance'),charId:currentChar,description,type,amount,date});
+  ui.editFinance=null;saveAndRender('Buchung gespeichert.');break
+ }
  case 'character-create': {
   const name=val(f,'name');if(!name)return;
   const ch={
@@ -33,6 +57,7 @@ function handleForm(f){const kind=f.dataset.form;if(!kind)return;const currentCh
   const defaultSnips = defaultSnippetsForChar(ch.id, ch.name);
   db.snippets.push(...defaultSnips);
   ui.charId=ch.id;
+  clearLeisureState();
   ui.selection={snippets: defaultSnips[0]?.id};
   saveAndRender('Charakter mit Farbschema angelegt.');
   break;
@@ -89,13 +114,15 @@ function handleForm(f){const kind=f.dataset.form;if(!kind)return;const currentCh
  }
 }
 function handleAction(el){const action=el.dataset.action, value=el.dataset.value, itemId=el.dataset.id;
+ if(action==='edit-inventory'||action==='edit-finance'){const collection=action==='edit-inventory'?'inventory':'finances';if(!collectionItem(collection,itemId))return;ui[collection==='inventory'?'editInventory':'editFinance']=itemId;render();return}
+ if(action==='cancel-inventory-edit'||action==='cancel-finance-edit'){ui[action==='cancel-inventory-edit'?'editInventory':'editFinance']=null;render();return}
  if(action==='golf-stroke'||action==='golf-undo'){const round=collectionItem('minigolf',el.dataset.roundId),holeIndex=Number(el.dataset.holeIndex),player=round?.players.find(item=>item.id===el.dataset.playerId);if(!player||!Number.isInteger(holeIndex)||holeIndex<0||holeIndex>=round.holes.length)return;const currentScore=Number(player.scores[holeIndex])||0;if(action==='golf-stroke'){if(currentScore>=20){toast('Maximal 20 Schläge pro Bahn.',true);return}player.scores[holeIndex]=currentScore+1}else{if(currentScore<=0)return;player.scores[holeIndex]=currentScore===1?null:currentScore-1}persist();render();return}
  if(action==='delete-golf-round'){const round=collectionItem('minigolf',itemId);if(!round||!confirm(`Minigolf-Runde „${round.course}“ löschen?`))return;db.minigolf=db.minigolf.filter(item=>item.id!==itemId);ui.selection.minigolf=null;saveAndRender('Minigolf-Runde gelöscht.');return}
  if(action==='refresh-lease'){render();return}
  if(action.startsWith('go-')){setPage(action.slice(3));return}
  if(action==='export'){download(`rp-desk-backup-${today()}.json`,JSON.stringify(db,null,2),'application/json');toast('JSON-Backup erstellt.');return}
  if(action==='import'){$('#backup-import').click();return}
- if(action==='clear-data'){if(confirm('Wirklich ALLE RP-Desk-Daten aus diesem Browser löschen? Vorher am besten ein JSON-Backup exportieren.')&&confirm('Letzte Bestätigung: Sämtliche Einträge und Charaktere zurücksetzen?')){replaceData(defaultData());ui.charId=null;ui.selection={};persist();render();toast('Lokaler Datenbestand zurückgesetzt.')}return}
+ if(action==='clear-data'){if(confirm('Wirklich ALLE RP-Desk-Daten aus diesem Browser löschen? Vorher am besten ein JSON-Backup exportieren.')&&confirm('Letzte Bestätigung: Sämtliche Einträge und Charaktere zurücksetzen?')){replaceData(defaultData());ui.charId=null;ui.selection={};clearLeisureState();saveAndRender('Lokaler Datenbestand zurückgesetzt.')}return}
  if(action==='board-zoom-in'){
   const b=sel('boards');const bw=b?.width||1200, bh=b?.height||650;
   const oldZoom=ui.boardZoom||1, newZoom=Math.min(3,Math.round((oldZoom+0.15)*100)/100);
@@ -117,8 +144,8 @@ function handleAction(el){const action=el.dataset.action, value=el.dataset.value
  if(action==='board-zoom-reset'){ui.boardZoom=1;ui.boardPanX=0;ui.boardPanY=0;render();return}
  if(action==='clear-create-node-image'){ui.pendingNodeImage=null;render();return}
  if(action==='remove-node-image'){const b=sel('boards'),n=b?.nodes.find(n=>n.id===itemId);if(n){n.image=null;saveAndRender('Bild entfernt.')}return}
- if(action==='switch-char'){ui.charId=itemId;ui.selection={};render();return}
- if(action==='delete-char'){const c=db.characters.find(c=>c.id===itemId);if(!c||!confirm(`${c.name} und ALLE zugehörigen Einträge endgültig löschen?`))return;db.characters=db.characters.filter(c=>c.id!==itemId);for(const k of [...REQUIRED_COLLECTIONS.filter(k=>k!=='characters'),...OPTIONAL_COLLECTIONS])db[k]=db[k].filter(x=>x.charId!==itemId);ui.charId=db.characters[0]?.id||null;ui.selection={};saveAndRender('Charakter gelöscht.');return}
+ if(action==='switch-char'){ui.charId=itemId;ui.selection={};clearLeisureState();render();return}
+ if(action==='delete-char'){const c=db.characters.find(c=>c.id===itemId);if(!c||!confirm(`${c.name} und ALLE zugehörigen Einträge endgültig löschen?`))return;db.characters=db.characters.filter(c=>c.id!==itemId);for(const k of [...REQUIRED_COLLECTIONS.filter(k=>k!=='characters'),...OPTIONAL_COLLECTIONS])db[k]=db[k].filter(x=>x.charId!==itemId);ui.charId=db.characters[0]?.id||null;ui.selection={};clearLeisureState();saveAndRender('Charakter gelöscht.');return}
  if(action==='evidence-prefill'){
   const first=$('#evidence-case-1'),second=$('#evidence-case-2');
   if(first&&second){first.value=el.dataset.caseA;second.value=el.dataset.caseB;first.focus()}
@@ -184,7 +211,7 @@ function handleAction(el){const action=el.dataset.action, value=el.dataset.value
  }
  if(action==='edit-timeline'){ui.editTimeline=ui.editTimeline===itemId?null:itemId;render();return}
  if(action==='task-filter'){ui.taskFilter=value;render();return}
- const toCollection={'delete-interview':'interviews','delete-lease':'leases','delete-note':'notes','delete-snippet':'snippets','delete-timeline':'timeline','delete-task':'tasks'};
+ const toCollection={'delete-interview':'interviews','delete-lease':'leases','delete-note':'notes','delete-snippet':'snippets','delete-timeline':'timeline','delete-task':'tasks','delete-inventory':'inventory','delete-finance':'finances'};
  if(toCollection[action]){removeItem(toCollection[action],itemId||sel(toCollection[action])?.id);return}
 }
 // Einheitliche Interaktionen und Autosave – keine Backend-Requests.
@@ -235,8 +262,14 @@ document.addEventListener('input',e=>{const t=e.target;
  autosave(t);
 });
 document.addEventListener('change',async e=>{const t=e.target;
+ if(t.matches('[data-tool-visibility]')){
+  const c=char(),page=t.dataset.toolVisibility;
+  if(!c||!CATEGORIES.slice(1).some(group=>group.items.some(([id])=>id===page)))return;
+  const hidden=new Set(c.hiddenTools||[]);if(t.checked)hidden.delete(page);else hidden.add(page);
+  c.hiddenTools=[...hidden];saveAndRender();return;
+ }
  if(t.matches('[data-golf-par]')){render();return}
- if(t.id==='character-select'){ui.charId=t.value;ui.selection={};render();return}
+ if(t.id==='character-select'){ui.charId=t.value;ui.selection={};clearLeisureState();render();return}
  if(t.id==='board-choice'){ui.selection.boards=t.value;ui.selection.node=null;render();return}
  if(t.matches('[data-board-dim]')){
   const b=sel('boards');if(b&&b.id===t.dataset.boardDim){
@@ -273,7 +306,7 @@ document.addEventListener('change',async e=>{const t=e.target;
  if(t.matches('[data-task-check]')){const v=collectionItem('tasks',t.dataset.taskCheck);if(v){v.done=t.checked;saveAndRender(v.done?'Aufgabe erledigt.':'Aufgabe wieder geöffnet.')}return}
  autosave(t);
 });
-$('#backup-import').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;try{const parsed=JSON.parse(await file.text());if(!validImport(parsed))throw Error('Unbekanntes Format oder inkompatible Version');if(!confirm('Import ersetzt deinen gesamten aktuellen RP-Desk-Datenbestand. Fortfahren?'))return;replaceData(parsed);ui.charId=db.characters[0]?.id||null;ui.selection={};saveAndRender('Backup erfolgreich wiederhergestellt.')}catch(err){toast('Backup nicht geladen: '+err.message,true)}finally{e.target.value=''}});
+$('#backup-import').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;try{const parsed=JSON.parse(await file.text());if(!validImport(parsed))throw Error('Unbekanntes Format oder inkompatible Version');if(!confirm('Import ersetzt deinen gesamten aktuellen RP-Desk-Datenbestand. Fortfahren?'))return;replaceData(parsed);ui.charId=db.characters[0]?.id||null;ui.selection={};clearLeisureState();saveAndRender('Backup erfolgreich wiederhergestellt.')}catch(err){toast('Backup nicht geladen: '+err.message,true)}finally{e.target.value=''}});
 $('#mobile-menu').addEventListener('click',()=>{$('#sidebar').classList.add('open');$('#sidebar-backdrop').classList.add('show')});
 $('#sidebar-backdrop').addEventListener('click',()=>{$('#sidebar').classList.remove('open');$('#sidebar-backdrop').classList.remove('show')});
 // Grafikknoten und freies Panning (verschieben der Arbeitsfläche)

@@ -11,6 +11,9 @@ Statische Website ohne Build-Schritt, Backend, externe Bibliotheken oder Trackin
 - Leasing- & Ratenmanager (Zahlungen, Restbetrag, Vorauszahlung, nächste Rate)
 - Notizblock, Zeitrechner, Textbausteine mit Platzhaltern
 - Einsatz-Timeline, Aufgabenverwaltung, Charakter-Dashboard
+- Navigationsbereiche für PD-Hub, Freizeit und gemeinsame Werkzeuge; Tool-Sichtbarkeit pro Charakter einstellbar
+- Lagerbestand mit Mengen, Stückpreisen und Gesamtwert sowie ein separater Kostenrechner
+- Einnahmen und Ausgaben mit Saldo und bearbeitbarer Buchungshistorie
 - Getrennte Charakterprofile; JSON-Backup und -Wiederherstellung
 
 ## Quellcode-Aufteilung
@@ -40,6 +43,8 @@ Dann `http://localhost:8000` öffnen.
 Sämtliche Inhalte befinden sich ausschließlich im localStorage des Browsers und werden nicht auf GitHub hochgeladen. **GitHub Pages synchronisiert weder Daten noch Nutzerkonten.** Unterschiedliche Browser, Geräte, Domains oder Browserprofile besitzen getrennte Datensätze. Im Tab **Charaktere** per **JSON-Backup** exportieren und auf dem anderen Gerät wiederherstellen.
 
 Bei Löschen der Browserdaten, Privatmodus, Browserwechsel oder Speicherbegrenzung können Daten verloren gehen. Daher regelmäßig Backups herunterladen. Der Import **ersetzt** den kompletten lokalen Datenstand, er führt ihn nicht zusammen. Keine automatische Synchronisierung. Sensible reale Daten bitte nicht hinterlegen: Website-Code ist öffentlich, lokale Daten sind nur vor gewöhnlichen Besuchern getrennt, aber nicht verschlüsselt.
+
+Unter **Tool-Einstellungen** lassen sich Werkzeuge für den aktiven Charakter ausblenden und jederzeit wieder einblenden; die zugehörigen Daten bleiben erhalten. Lagerbestand und Finanzbuchungen sind unabhängig: Änderungen am Lager erzeugen keine Einnahmen oder Ausgaben. Der Kostenrechner legt ebenfalls keine Einträge an. Beide neuen Sammlungen und die Sichtbarkeitseinstellungen sind im JSON-Backup enthalten; ältere Backups bleiben importierbar.
 
 ## Hinweise zum Leasing-Rechner
 
