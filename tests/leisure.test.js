@@ -189,7 +189,7 @@ test('Ungültiger leerer Hülsentyp wird beim Laborbericht-Import zurückgewiese
  assert.equal(a.rp.db.weapons.length,0);
 });
 
-test('Importvorschau, manuelle Vergleiche und Evidence-Berichte bleiben synchron',()=>{
+test('Importvorschau, Laborbericht und Evidence-Berichte bleiben synchron',()=>{
  const a=app();
  a.submit('character-create',{name:'Ermittler',color:'#8aa6ff'});
  const reportText='Probennummer: #a4f2871, #b5c3982\nHülse 1: Pistol\nHülse 2: Pistol\nErgebnis: Die Hülsen weisen das selbe Profil auf';
@@ -198,7 +198,7 @@ test('Importvorschau, manuelle Vergleiche und Evidence-Berichte bleiben synchron
  a.submit('evidence-create',{caseId:'#a4f2871',weaponType:'Pistol'});
  a.submit('evidence-create',{caseId:'#b5c3982',weaponType:'Pistol'});
  const first=a.rp.db.evidence[0];
- a.submit('evidence-compare',{case1:first.id,case2:a.rp.db.evidence[1].id,result:'MATCH',reportId:'#123abcd'});
+ a.submit('evidence-report-import',{reportId:'#123abcd',reportText});
  const comparison=a.rp.db.evidenceReports[0];
  assert.equal(a.rp.db.weapons.length,1);
  assert.equal(a.rp.db.evidence[0].weaponId,a.rp.db.evidence[1].weaponId);
@@ -210,6 +210,7 @@ test('Importvorschau, manuelle Vergleiche und Evidence-Berichte bleiben synchron
  assert.match(summary,/WAFFE 1[\s\S]*?#c6d4093[\s\S]*?#b5c3982[\s\S]*?Übereinstimmung/);
  a.click('[data-nav]',{nav:'evidence'});
  assert.match(a.elements['#content'].innerHTML,/data-evidence-report-preview/);
+ assert.doesNotMatch(a.elements['#content'].innerHTML,/Manueller Vergleich|OFFENE VERGLEICHE/);
  assert.match(a.elements['#content'].innerHTML,/Bericht kopieren/);
  a.click('[data-action]',{action:'evidence-summary-export'});
  assert.equal(a.downloads.length,1);
@@ -218,10 +219,7 @@ test('Importvorschau, manuelle Vergleiche und Evidence-Berichte bleiben synchron
 test('Evidence-Modul-Backup enthält Waffen, Hülsen und Laborberichte',async()=>{
  const a=app();
  a.submit('character-create',{name:'Ermittler',color:'#8aa6ff'});
- a.submit('weapon-create',{weaponType:'Pistol'});
- a.submit('evidence-create',{caseId:'#a4f2871',weaponId:a.rp.db.weapons[0].id});
- a.submit('evidence-create',{caseId:'#b5c3982',weaponType:'Pistol'});
- a.submit('evidence-compare',{case1:a.rp.db.evidence[0].id,case2:a.rp.db.evidence[1].id,result:'MATCH'});
+ a.submit('evidence-report-import',{reportText:'Probennummer: #a4f2871, #b5c3982\nHülse 1: Pistol\nHülse 2: Pistol\nErgebnis: Die Hülsen weisen das selbe Profil auf'});
  assert.equal(a.rp.db.weapons.length,1);
  a.rp.$('#backup-module-select').value='evidence';
  a.click('[data-action]',{action:'export-module'});
@@ -229,6 +227,15 @@ test('Evidence-Modul-Backup enthält Waffen, Hülsen und Laborberichte',async()=
  assert.equal(backup.evidence.length,2);
  assert.equal(backup.weapons.length,1);
  assert.equal(backup.evidenceReports.length,1);
+});
+
+test('NO_MATCH trennt Hülsen, die zuvor derselben Waffe zugeordnet waren',()=>{
+ const a=app();
+ a.submit('character-create',{name:'Ermittler',color:'#8aa6ff'});
+ a.submit('evidence-report-import',{reportText:'Probennummer: #a4f2871, #b5c3982\nHülse 1: Pistol\nHülse 2: Pistol\nErgebnis: Die Hülsen weisen das selbe Profil auf'});
+ assert.equal(a.rp.db.evidence[0].weaponId,a.rp.db.evidence[1].weaponId);
+ a.submit('evidence-report-import',{reportText:'Probennummer: #a4f2871, #b5c3982\nHülse 1: Pistol\nHülse 2: Pistol\nErgebnis: Die Hülsen weisen nicht das selbe Profil auf'});
+ assert.notEqual(a.rp.db.evidence[0].weaponId,a.rp.db.evidence[1].weaponId);
 });
 
 test('Sichtbarkeit gilt pro Charakter, einschließlich Dashboard und Wechsel der aktiven Seite',()=>{

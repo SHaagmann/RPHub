@@ -53,6 +53,7 @@ function assignEvidenceWeapons(first,second,parsed,currentChar){
   }
   return;
  }
+ if(first.weaponId&&first.weaponId===second.weaponId)second.weaponId=createWeapon(parsed.weaponType2).id;
  if(!first.weaponId)first.weaponId=createWeapon(parsed.weaponType1).id;
  if(!second.weaponId)second.weaponId=createWeapon(parsed.weaponType2).id;
 }
@@ -291,14 +292,7 @@ function handleForm(f){if(window.RPDeskPages.map?.handleSubmit(f))return;const k
     report.reportId=reportId;saveAndRender('Berichtsnummer gespeichert.');break
    }
  case 'evidence-compare': {
-  if(!currentChar)return;
-  const first=collectionItem('evidence',val(f,'case1')),second=collectionItem('evidence',val(f,'case2')),result=val(f,'result');
-  if(!first||!second){toast('Bitte zwei erfasste Hülsen auswählen.',true);return}
-  if(first.id===second.id){toast('Eine Hülse kann nicht mit sich selbst verglichen werden.',true);return}
-  if(!['MATCH','NO_MATCH','DIFFERENT_WEAPON'].includes(result)){toast('Ungültiges Vergleichsergebnis.',true);return}
-  assignEvidenceWeapons(first,second,{result,weaponType1:first.weaponType,weaponType2:second.weaponType},currentChar);
-  db.evidenceReports.push({id:uid('evidence-report'),charId:currentChar,caseId1:first.caseId,caseId2:second.caseId,result,reportId:val(f,'reportId'),importedAt:new Date().toISOString(),source:'manual'});
-  saveAndRender('Vergleich dokumentiert.');
+  toast('Vergleiche werden aus fertigen Laborberichten übernommen.');
   break
  }
  case 'evidence-report-import': {
@@ -424,11 +418,6 @@ function handleAction(el){const action=el.dataset.action, value=el.dataset.value
  if(action==='remove-node-image'){const b=sel('boards'),n=b?.nodes.find(n=>n.id===itemId);if(n){n.image=null;saveAndRender('Bild entfernt.')}return}
  if(action==='switch-char'){ui.charId=itemId;ui.selection={};clearLeisureState();render();return}
  if(action==='delete-char'){const c=db.characters.find(c=>c.id===itemId);if(!c||!confirm(`${c.name} und ALLE zugehörigen Einträge endgültig löschen?`))return;db.characters=db.characters.filter(c=>c.id!==itemId);for(const k of [...REQUIRED_COLLECTIONS.filter(k=>k!=='characters'),...OPTIONAL_COLLECTIONS])db[k]=db[k].filter(x=>x.charId!==itemId);const removed=new Set(db.entities.filter(x=>x.charId===itemId).map(x=>x.id));db.entities=db.entities.filter(x=>!removed.has(x.id));db.relationships=db.relationships.filter(x=>!removed.has(x.sourceId)&&!removed.has(x.targetId));ui.charId=db.characters[0]?.id||null;ui.selection={};clearLeisureState();saveAndRender('Charakter gelöscht.');return}
- if(action==='evidence-prefill'){
-  const first=$('#evidence-case-1'),second=$('#evidence-case-2');
-  if(first&&second){first.value=el.dataset.caseA;second.value=el.dataset.caseB;first.focus()}
-  return
- }
  if(action==='delete-evidence'){
   const item=collectionItem('evidence',itemId);
   if(!item||!confirm(`Evidence „${item.caseId}“ und zugehörige Vergleiche löschen?`))return;
