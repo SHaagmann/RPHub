@@ -188,13 +188,14 @@ const defaultData = () => ({
   minigolf: [],
   evidence: [],
   evidenceReports: [],
+  weapons: [],
   inventory: [],
   finances: [],
   entities: [],
   relationships: []
 });
 const REQUIRED_COLLECTIONS = ['characters','boards','interviews','leases','notes','timeline','tasks','snippets','minigolf'];
-const OPTIONAL_COLLECTIONS = ['minigolf','evidence','evidenceReports','inventory','finances'];
+const OPTIONAL_COLLECTIONS = ['minigolf','evidence','evidenceReports','weapons','inventory','finances'];
 const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 function validEntity(entity){
  return isRecord(entity)
@@ -214,12 +215,12 @@ function validRelationship(relationship){
   && (relationship.description === undefined || typeof relationship.description === 'string')
   && typeof relationship.createdAt === 'string';
 }
-const LEGACY_ENTITY_TYPES={boards:'board',interviews:'event',leases:'vehicle',notes:'note',timeline:'event',tasks:'task',snippets:'note',evidence:'evidence',evidenceReports:'evidence',inventory:'evidence',finances:'event',minigolf:'event'};
+const LEGACY_ENTITY_TYPES={boards:'board',interviews:'event',leases:'vehicle',notes:'note',timeline:'event',tasks:'task',snippets:'note',evidence:'evidence',evidenceReports:'evidence',weapons:'evidence',inventory:'evidence',finances:'event',minigolf:'event'};
 const LEGACY_SEARCH_FIELDS={
  boards:['name'],interviews:['subject','caseNumber','location','participants','notes'],leases:['vehicle','plate'],
  notes:['title','body'],timeline:['title','category','caseNumber','details'],tasks:['title','details','due'],
  snippets:['title','body'],evidence:['caseId','weaponType','serialNumber','suspect','notes'],
- evidenceReports:['caseId1','caseId2','result','reportId'],inventory:['name'],finances:['description','type','date'],minigolf:['course']
+ evidenceReports:['caseId1','caseId2','result','reportId'],weapons:['weaponType','serialNumber','suspect','notes'],inventory:['name'],finances:['description','type','date'],minigolf:['course']
 };
 function legacyFields(collection,record){
  const fields={legacyCollection:collection,legacyId:record.id};
@@ -276,6 +277,8 @@ function validImport(v){
   ||(v.relationships!==undefined&&(!Array.isArray(v.relationships)||!v.relationships.every(validRelationship)))
   ||(v.entities||[]).some(entity=>entity.charId!==null&&!v.characters.some(character=>character.id===entity.charId))
   ||(v.inventory&&!v.inventory.every(i=>typeof i?.id==='string'&&typeof i.charId==='string'&&typeof i.name==='string'&&Number.isInteger(i.quantity)&&i.quantity>=0&&i.quantity<=100000&&Number.isFinite(i.price)&&i.price>=0&&i.price<=1000000&&Math.abs(i.price*100-Math.round(i.price*100))<0.000001))
+  ||(v.weapons&&!v.weapons.every(w=>typeof w?.id==='string'&&typeof w.charId==='string'&&typeof w.weaponType==='string'&&typeof w.serialNumber==='string'&&typeof w.notes==='string'&&(w.suspect===undefined||typeof w.suspect==='string')))
+  ||(v.weapons||[]).some(w=>!v.characters.some(character=>character.id===w.charId))
   ||(v.finances&&!v.finances.every(i=>typeof i?.id==='string'&&typeof i.charId==='string'&&typeof i.description==='string'&&['income','expense'].includes(i.type)&&Number.isFinite(i.amount)&&i.amount>=0.01&&i.amount<=1000000&&Math.abs(i.amount*100-Math.round(i.amount*100))<0.000001&&typeof i.date==='string')))return false;
  const ids=[...(v.entities||[]),...(v.relationships||[])].map(item=>item.id);
  const entityIds=new Set((v.entities||[]).map(entity=>entity.id));

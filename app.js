@@ -3,7 +3,7 @@
 const {CATEGORIES,TITLES,ICONS,ico,$,esc,id,today,datetimeLocal,formatDate,fmtMoney,empty,field,textareaField,btn,head,uid,THEME_PRESETS,hexToRgb,rgbToHex,mixColors,applyTheme,compressImage,defaultSnippetsForChar,defaultData,REQUIRED_COLLECTIONS,OPTIONAL_COLLECTIONS,validImport,normalizeData,load,db,ui,persist,toast,char,scoped,collectionItem,sel,layoutBoardImages,openImageViewer,updateImageViewer,changeImageZoom,copyText,fallbackCopy,download,dataField,status,val,headlinePanel,listPane,renderDateTimeMeta,badge,replaceData}=window.RPDesk;
 const {toolVisible}=window.RPDesk;
 const pageModules=Object.assign({},window.RPDeskPages.dashboard,window.RPDeskPages.changelog,window.RPDeskPages.investigations,window.RPDeskPages.workspace,window.RPDeskPages.leisure,window.RPDeskPages.records,window.RPDeskPages.map);
-const {APP_VERSION,pageDashboard,pageChangelog,pageCharacters,pageSettings,pageBoard,interviewReport,pageInterviews,evidencePairKey,evidenceResultLabel,evidenceResultKind,parseEvidenceLabReport,pageEvidence,leaseCalc,pageLeases,pageNotes,pageTime,pageMinigolf,pageSnippets,pageTimeline,pageTasks,pageInventory,pageFinances,pageCases,pageDeadlines,pageMap,recordReport}=pageModules;
+const {APP_VERSION,pageDashboard,pageChangelog,pageCharacters,pageSettings,pageBoard,interviewReport,pageInterviews,evidencePairKey,evidenceResultLabel,evidenceResultKind,parseEvidenceLabReport,evidenceSummaryReport,pageEvidence,leaseCalc,pageLeases,pageNotes,pageTime,pageMinigolf,pageSnippets,pageTimeline,pageTasks,pageInventory,pageFinances,pageCases,pageDeadlines,pageMap,recordReport}=pageModules;
 const pages={dashboard:pageDashboard,changelog:pageChangelog,characters:pageCharacters,settings:pageSettings,cases:pageCases,deadlines:pageDeadlines,map:pageMap,board:pageBoard,interviews:pageInterviews,evidence:pageEvidence,leases:pageLeases,notes:pageNotes,time:pageTime,minigolf:pageMinigolf,snippets:pageSnippets,timeline:pageTimeline,tasks:pageTasks,inventory:pageInventory,finances:pageFinances};
 function setPage(page){if(!TITLES[page]||!toolVisible(page))return;ui.page=page;$('#sidebar').classList.remove('open');$('#sidebar-backdrop').classList.remove('show');render();window.scrollTo({top:0,behavior:'auto'});}
 function renderNavigation(){let html='';for(const group of CATEGORIES){const items=group.items.filter(([page])=>toolVisible(page));if(!items.length)continue;html+=`<div class="nav-group"><div class="nav-group-label">${esc(group.heading)}</div>`;for(const [p,title,icon] of items)html+=`<button class="nav-item ${ui.page===p?'active':''}" data-nav="${p}" ${ui.page===p?'aria-current="page"':''}>${ico(icon)}<span>${esc(title)}</span></button>`;html+='</div>'; }$('#navigation').innerHTML=html;}
@@ -32,6 +32,30 @@ function openGlobalSearch(){
 }
 function saveAndRender(message){const saved=persist();render();if(saved&&message)toast(message)}
 function clearLeisureState(){ui.editInventory=null;ui.editFinance=null;ui.costCalculation=null}
+function assignEvidenceWeapons(first,second,parsed,currentChar){
+ const firstWeapon=db.weapons.find(item=>item.id===first.weaponId&&item.charId===currentChar);
+ const secondWeapon=db.weapons.find(item=>item.id===second.weaponId&&item.charId===currentChar);
+ const createWeapon=weaponType=>{
+  const weapon={id:uid('weapon'),charId:currentChar,weaponType:weaponType||'',serialNumber:'',notes:'',createdAt:new Date().toISOString()};
+  db.weapons.push(weapon);
+  return weapon;
+ };
+ if(parsed.result==='MATCH'){
+  if(firstWeapon&&secondWeapon){
+   if(firstWeapon.id===secondWeapon.id)return;
+   for(const evidence of db.evidence)if(evidence.charId===currentChar&&evidence.weaponId===secondWeapon.id)evidence.weaponId=firstWeapon.id;
+   db.weapons=db.weapons.filter(item=>item.id!==secondWeapon.id);
+  }else if(firstWeapon)second.weaponId=firstWeapon.id;
+  else if(secondWeapon)first.weaponId=secondWeapon.id;
+  else{
+   const weapon=createWeapon(parsed.weaponType1||parsed.weaponType2);
+   first.weaponId=weapon.id;second.weaponId=weapon.id;
+  }
+  return;
+ }
+ if(!first.weaponId)first.weaponId=createWeapon(parsed.weaponType1).id;
+ if(!second.weaponId)second.weaponId=createWeapon(parsed.weaponType2).id;
+}
 function removeItem(collection,itemId){const it=collectionItem(collection,itemId);if(!it||!confirm('Eintrag wirklich löschen? Diese Aktion kann nur über ein Backup rückgängig gemacht werden.'))return;db[collection]=db[collection].filter(x=>x.id!==itemId);if(ui.selection[collection]===itemId)delete ui.selection[collection];saveAndRender('Eintrag gelöscht.');}
 function openEntity(itemId){
  const item=db.entities.find(entry=>entry.id===itemId);if(!item)return;
@@ -39,8 +63,8 @@ function openEntity(itemId){
  const routes={case:'cases',person:'directory',vehicle:'directory',organization:'directory',deadline:'deadlines',location:'map'};
  if(routes[item.type]){ui.page=routes[item.type];ui.selection[routes[item.type]==='directory'?'directory':item.type]=item.id;render();return}
  const collection=item.fields.legacyCollection,legacyId=item.fields.legacyId;
- const route={boards:'board',interviews:'interviews',leases:'leases',notes:'notes',timeline:'timeline',tasks:'tasks',snippets:'snippets',evidence:'evidence',evidenceReports:'evidence',inventory:'inventory',finances:'finances',minigolf:'minigolf'}[collection];
- if(route){ui.page=route;ui.selection[collection==='evidenceReports'?'evidence':collection]=legacyId;render();return}
+ const route={boards:'board',interviews:'interviews',leases:'leases',notes:'notes',timeline:'timeline',tasks:'tasks',snippets:'snippets',evidence:'evidence',evidenceReports:'evidence',weapons:'evidence',inventory:'inventory',finances:'finances',minigolf:'minigolf'}[collection];
+ if(route){ui.page=route;ui.selection[['evidenceReports','weapons'].includes(collection)?'evidence':collection]=legacyId;render();return}
  ui.page='dashboard';render();
 }
 function recordLinks(entityId){return db.relationships.filter(item=>item.sourceId===entityId||item.targetId===entityId)}
@@ -71,11 +95,12 @@ function exportModuleBackup(module){
  const backup=defaultData();backup.characters=[character];
  for(const key of [...new Set([...REQUIRED_COLLECTIONS,...OPTIONAL_COLLECTIONS])])if(key!=='characters')backup[key]=key===module&&Array.isArray(db[key])?db[key].filter(item=>item.charId===character.id):[];
  if(module==='evidence')backup.evidenceReports=db.evidenceReports.filter(item=>item.charId===character.id);
+ if(module==='evidence')backup.weapons=db.weapons.filter(item=>item.charId===character.id);
  const seedTypes={cases:['case'],deadlines:['deadline'],map:['location'],directory:['person','vehicle','organization']};
- const included=new Set(db.entities.filter(item=>module==='map'?item.type==='location'&&(item.charId===character.id||item.charId===null):item.charId===character.id&&(item.fields.legacyCollection===module||(seedTypes[module]||[]).includes(item.type))).map(item=>item.id));let changed=true;
+ const included=new Set(db.entities.filter(item=>module==='map'?item.type==='location'&&(item.charId===character.id||item.charId===null):item.charId===character.id&&(item.fields.legacyCollection===module||(module==='evidence'&&['evidenceReports','weapons'].includes(item.fields.legacyCollection))||(seedTypes[module]||[]).includes(item.type))).map(item=>item.id));let changed=true;
  while(changed){changed=false;for(const link of db.relationships){if(included.has(link.sourceId)||included.has(link.targetId)){const other=window.RPDesk.entity(included.has(link.sourceId)?link.targetId:link.sourceId);if(other&&(other.charId===null||other.charId===character.id)&&!included.has(other.id)){included.add(other.id);changed=true}}}}
  backup.entities=db.entities.filter(item=>included.has(item.id));const ids=new Set(backup.entities.map(item=>item.id));backup.relationships=db.relationships.filter(item=>ids.has(item.sourceId)&&ids.has(item.targetId));
- for(const item of backup.entities){const collection=item.fields.legacyCollection,recordId=item.fields.legacyId;if(!collection||!recordId||!Array.isArray(db[collection])||collection===module)continue;const record=db[collection].find(value=>value.id===recordId&&value.charId===character.id);if(record)backup[collection].push(record)}
+ for(const item of backup.entities){const collection=item.fields.legacyCollection,recordId=item.fields.legacyId;if(!collection||!recordId||!Array.isArray(db[collection])||collection===module||(module==='evidence'&&['evidenceReports','weapons'].includes(collection)))continue;const record=db[collection].find(value=>value.id===recordId&&value.charId===character.id);if(record)backup[collection].push(record)}
  download(`rp-desk-${module}-${character.name.replace(/[^a-z0-9_-]/gi,'-')}-${today()}.json`,JSON.stringify(backup,null,2),'application/json');toast('Modul-Backup erstellt.');
 }
 function mergeBackups(current,incoming){
@@ -227,16 +252,51 @@ function handleForm(f){if(window.RPDeskPages.map?.handleSubmit(f))return;const k
   const caseId=val(f,'caseId');
   if(!caseId){toast('Bitte eine Evidence-ID angeben.',true);return}
   if(scoped('evidence').some(item=>item.caseId.toLowerCase()===caseId.toLowerCase())){toast('Diese Evidence-ID ist für den Charakter bereits vorhanden.',true);return}
-  db.evidence.push({id:uid('evidence'),charId:currentChar,caseId,weaponType:val(f,'weaponType'),serialNumber:val(f,'serialNumber'),suspect:val(f,'suspect'),notes:val(f,'notes'),createdAt:new Date().toISOString()});
+    const selectedCaseId=val(f,'caseRecordId'),caseRecordId=db.entities.some(item=>item.id===selectedCaseId&&item.type==='case'&&item.charId===currentChar)?selectedCaseId:'';
+    const selectedWeapon=db.weapons.find(item=>item.id===val(f,'weaponId')&&item.charId===currentChar);
+    db.evidence.push({id:uid('evidence'),charId:currentChar,caseId,caseRecordId,weaponId:selectedWeapon?.id||'',weaponType:val(f,'weaponType')||selectedWeapon?.weaponType||'',serialNumber:val(f,'serialNumber')||selectedWeapon?.serialNumber||'',suspect:val(f,'suspect')||selectedWeapon?.suspect||'',notes:val(f,'notes'),createdAt:new Date().toISOString()});
   saveAndRender('Evidence gespeichert.');
   break
  }
+   case 'weapon-create': {
+    if(!currentChar)return;
+    const weaponType=val(f,'weaponType').trim(),serialNumber=val(f,'serialNumber').trim();
+    if(!weaponType&&!serialNumber){toast('Bitte Waffentyp oder Seriennummer angeben.',true);return}
+    db.weapons.push({id:uid('weapon'),charId:currentChar,weaponType,serialNumber,notes:val(f,'notes'),suspect:val(f,'suspect'),createdAt:new Date().toISOString()});
+    saveAndRender('Waffe gespeichert.');break
+   }
+   case 'weapon-save': {
+    const weapon=collectionItem('weapons',f.dataset.id);if(!weapon)return;
+    const weaponType=val(f,'weaponType').trim(),serialNumber=val(f,'serialNumber').trim();
+    if(!weaponType&&!serialNumber){toast('Bitte Waffentyp oder Seriennummer angeben.',true);return}
+    Object.assign(weapon,{weaponType,serialNumber,notes:val(f,'notes'),suspect:val(f,'suspect')});
+    saveAndRender('Waffe aktualisiert.');break
+   }
+   case 'evidence-save': {
+    const item=collectionItem('evidence',f.dataset.id);if(!item)return;
+    const caseId=val(f,'caseId').trim().toLowerCase();
+    if(!/^#[a-f\d]{7}$/.test(caseId)){toast('Die Evidence-ID muss dem Format #xxxxxxx entsprechen.',true);return}
+    if(scoped('evidence').some(entry=>entry.id!==item.id&&entry.caseId.toLowerCase()===caseId)){toast('Diese Evidence-ID ist für den Charakter bereits vorhanden.',true);return}
+    const selectedCaseId=val(f,'caseRecordId'),caseRecordId=db.entities.some(entry=>entry.id===selectedCaseId&&entry.type==='case'&&entry.charId===currentChar)?selectedCaseId:'';
+    const weapon=db.weapons.find(entry=>entry.id===val(f,'weaponId')&&entry.charId===currentChar);
+    const oldCaseId=item.caseId;
+    Object.assign(item,{caseId,caseRecordId,weaponId:weapon?.id||'',weaponType:val(f,'weaponType')||weapon?.weaponType||'',serialNumber:val(f,'serialNumber')||weapon?.serialNumber||'',suspect:val(f,'suspect')||weapon?.suspect||'',notes:val(f,'notes')});
+    if(oldCaseId!==caseId)for(const report of scoped('evidenceReports')){if(report.caseId1.toLowerCase()===oldCaseId.toLowerCase())report.caseId1=caseId;if(report.caseId2.toLowerCase()===oldCaseId.toLowerCase())report.caseId2=caseId}
+    saveAndRender('Evidence aktualisiert.');break
+   }
+   case 'evidence-report-save': {
+    const report=collectionItem('evidenceReports',f.dataset.id);if(!report)return;
+    const reportId=val(f,'reportId').trim();
+    if(reportId&&!/^#[a-f\d]{7}$/i.test(reportId)){toast('Die Berichtsnummer muss dem Format #xxxxxxx entsprechen.',true);return}
+    report.reportId=reportId;saveAndRender('Berichtsnummer gespeichert.');break
+   }
  case 'evidence-compare': {
   if(!currentChar)return;
   const first=collectionItem('evidence',val(f,'case1')),second=collectionItem('evidence',val(f,'case2')),result=val(f,'result');
   if(!first||!second){toast('Bitte zwei erfasste Hülsen auswählen.',true);return}
   if(first.id===second.id){toast('Eine Hülse kann nicht mit sich selbst verglichen werden.',true);return}
   if(!['MATCH','NO_MATCH','DIFFERENT_WEAPON'].includes(result)){toast('Ungültiges Vergleichsergebnis.',true);return}
+  assignEvidenceWeapons(first,second,{result,weaponType1:first.weaponType,weaponType2:second.weaponType},currentChar);
   db.evidenceReports.push({id:uid('evidence-report'),charId:currentChar,caseId1:first.caseId,caseId2:second.caseId,result,reportId:val(f,'reportId'),importedAt:new Date().toISOString(),source:'manual'});
   saveAndRender('Vergleich dokumentiert.');
   break
@@ -245,14 +305,18 @@ function handleForm(f){if(window.RPDeskPages.map?.handleSubmit(f))return;const k
   if(!currentChar)return;
   const rawText=val(f,'reportText'),parsed=parseEvidenceLabReport(rawText);
   if(!parsed){toast('Bericht nicht erkannt. Es müssen zwei siebenstellige Evidence-IDs enthalten sein.',true);return}
+  const reportId=val(f,'reportId').trim();
+  if(reportId&&!/^#[a-f\d]{7}$/i.test(reportId)){toast('Die Berichtsnummer muss dem Format #xxxxxxx entsprechen.',true);return}
+    const selectedCaseId=val(f,'caseRecordId'),caseRecordId=db.entities.some(item=>item.id===selectedCaseId&&item.type==='case'&&item.charId===currentChar)?selectedCaseId:'';
   let first=db.evidence.find(item=>item.charId===currentChar&&item.caseId.toLowerCase()===parsed.caseId1.toLowerCase());
   let second=db.evidence.find(item=>item.charId===currentChar&&item.caseId.toLowerCase()===parsed.caseId2.toLowerCase());
   if(parsed.caseId1===parsed.caseId2){toast('Der Bericht enthält zweimal dieselbe Evidence-ID.',true);return}
-  if(!first){first={id:uid('evidence'),charId:currentChar,caseId:parsed.caseId1,weaponType:parsed.weaponType1,serialNumber:'',suspect:'',notes:'',createdAt:new Date().toISOString()};db.evidence.push(first)}
-  else if(parsed.weaponType1)first.weaponType=parsed.weaponType1;
-  if(!second){second={id:uid('evidence'),charId:currentChar,caseId:parsed.caseId2,weaponType:parsed.weaponType2,serialNumber:'',suspect:'',notes:'',createdAt:new Date().toISOString()};db.evidence.push(second)}
-  else if(parsed.weaponType2)second.weaponType=parsed.weaponType2;
-  db.evidenceReports.push({id:uid('evidence-report'),charId:currentChar,caseId1:first.caseId,caseId2:second.caseId,result:parsed.result,reportId:'',importedAt:new Date().toISOString(),source:'import',rawText});
+    if(!first){first={id:uid('evidence'),charId:currentChar,caseId:parsed.caseId1,caseRecordId,weaponType:parsed.weaponType1,serialNumber:'',suspect:'',notes:'',createdAt:new Date().toISOString()};db.evidence.push(first)}
+    else{if(parsed.weaponType1)first.weaponType=parsed.weaponType1;if(caseRecordId)first.caseRecordId=caseRecordId}
+    if(!second){second={id:uid('evidence'),charId:currentChar,caseId:parsed.caseId2,caseRecordId,weaponType:parsed.weaponType2,serialNumber:'',suspect:'',notes:'',createdAt:new Date().toISOString()};db.evidence.push(second)}
+    else{if(parsed.weaponType2)second.weaponType=parsed.weaponType2;if(caseRecordId)second.caseRecordId=caseRecordId}
+    assignEvidenceWeapons(first,second,parsed,currentChar);
+  db.evidenceReports.push({id:uid('evidence-report'),charId:currentChar,caseId1:first.caseId,caseId2:second.caseId,result:parsed.result,reportId,importedAt:new Date().toISOString(),source:'import',rawText});
   saveAndRender('Laborbericht importiert.');
   break
  }
@@ -379,6 +443,14 @@ function handleAction(el){const action=el.dataset.action, value=el.dataset.value
   db.evidenceReports=db.evidenceReports.filter(entry=>entry.id!==itemId);
   saveAndRender('Vergleichsbericht gelöscht.');
   return
+ }
+ if(action==='evidence-summary-copy'){copyText(evidenceSummaryReport(scoped('weapons'),scoped('evidence'),scoped('evidenceReports')));return}
+ if(action==='evidence-summary-export'){download(`Forensik-Bericht-${today()}.txt`,evidenceSummaryReport(scoped('weapons'),scoped('evidence'),scoped('evidenceReports')));return}
+ if(action==='delete-weapon'){
+  const weapon=collectionItem('weapons',itemId);if(!weapon||!confirm('Waffe entfernen? Die zugehörigen Hülsen und Vergleiche bleiben erhalten.'))return;
+  for(const item of scoped('evidence'))if(item.weaponId===weapon.id)item.weaponId='';
+  db.weapons=db.weapons.filter(item=>item.id!==weapon.id);
+  saveAndRender('Waffe entfernt.');return
  }
  if(action==='apply-theme-preset'){
   const c = char();
@@ -516,11 +588,24 @@ document.addEventListener('input',e=>{const t=e.target;
  if(t.matches('[data-map-zoom]')){ui.mapZoom=Number(t.value);const content=$('.map-content');if(content)content.style.transform=`translate(${ui.mapPanX||0}px,${ui.mapPanY||0}px) scale(${ui.mapZoom})`;const current=char();if(current){current.mapView={...(current.mapView||{}),zoom:ui.mapZoom};persist()}return}
  if(t.matches('[data-dashboard-note]')){const current=char();if(current){current.dashboardNote=t.value;persist()}return}
  if(t.matches('[data-directory-search]')){ui.directorySearch=t.value;const pos=t.selectionStart;render();const current=$('[data-directory-search]');if(current){current.focus();current.setSelectionRange(pos,pos)}return}
+ if(t.matches('[data-evidence-report-text]')){
+  const preview=t.closest('form')?.querySelector('[data-evidence-report-preview]');if(!preview)return;
+  const parsed=parseEvidenceLabReport(t.value);
+  preview.innerHTML=parsed?`<strong>${esc(parsed.caseId1)} ↔ ${esc(parsed.caseId2)}</strong><small>${esc(parsed.weaponType1)} · ${esc(parsed.weaponType2)}</small><small>${esc(evidenceResultLabel(parsed.result))}</small>`:'<span class="hint">Bericht nicht erkannt. Bitte Probennummer, beide Hülsentypen und Ergebnis prüfen.</span>';
+  return
+ }
  if(t.matches('[data-variable]')){ui.variables[t.dataset.variable]=t.value;return}
  autosave(t);
 });
 document.addEventListener('change',async e=>{const t=e.target;
  if(window.RPDeskPages.map?.handleChange(e))return;
+ if(t.matches('[data-evidence-weapon]')){
+  const item=collectionItem('evidence',t.dataset.evidenceWeapon),weapon=db.weapons.find(entry=>entry.id===t.value&&entry.charId===char()?.id);
+  if(!item)return;
+  item.weaponId=weapon?.id||'';
+  if(weapon){item.weaponType=item.weaponType||weapon.weaponType;item.serialNumber=item.serialNumber||weapon.serialNumber;item.suspect=item.suspect||weapon.suspect}
+  saveAndRender('Waffenzuordnung gespeichert.');return;
+ }
  if(t.matches('[data-tool-visibility]')){
   const c=char(),page=t.dataset.toolVisibility;
   if(!c||!CATEGORIES.slice(1).some(group=>group.items.some(([id])=>id===page)))return;

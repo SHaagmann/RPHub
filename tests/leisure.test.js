@@ -45,6 +45,9 @@ function app(initialData) {
  function change(id,value) {
   listeners.change({target:{id,value,matches:()=>false}});
  }
+ function changeEvidenceWeapon(id,value) {
+  listeners.change({target:{value,dataset:{evidenceWeapon:id},matches:query=>query==='[data-evidence-weapon]'}});
+ }
  function visibility(page,checked) {
   listeners.change({target:{dataset:{toolVisibility:page},checked,matches:query=>query==='[data-tool-visibility]'}});
  }
@@ -52,8 +55,14 @@ function app(initialData) {
   const target=element(selector);target.value=value;target.matches=query=>query===selector;target.selectionStart=String(value).length;
   listeners.input({target});
  }
+ function inputEvidenceReport(value){
+  const preview={innerHTML:''},form={querySelector:selector=>selector==='[data-evidence-report-preview]'?preview:null};
+  const target={value,matches:query=>query==='[data-evidence-report-text]',closest:selector=>selector==='form'?form:null};
+  listeners.input({target});
+  return preview.innerHTML;
+ }
  function keydown(event){listeners.keydown({...event,preventDefault:event.preventDefault||function(){}})}
- return {rp:window.RPDesk,pages:window.RPDeskPages,submit,click,change,visibility,input,keydown,elements,storage,downloads};
+ return {rp:window.RPDesk,pages:window.RPDeskPages,submit,click,change,changeEvidenceWeapon,visibility,input,inputEvidenceReport,keydown,elements,storage,downloads};
 }
 
 test('Changelog ist ohne Charakter erreichbar und zeigt die aktuelle Version',()=>{
@@ -99,6 +108,127 @@ test('Lager, Rechner und Finanzen sind bearbeitbar und nach Charakter getrennt',
  assert.equal(a.rp.db.inventory.length,0);
  a.click('[data-action]',{action:'delete-finance',id:expense.id});
  assert.equal(a.rp.db.finances.length,1);
+});
+
+test('Evidence-Import zeigt erkannte Waffentypen dem jeweiligen Fall zugeordnet',()=>{
+ const a=app();
+ a.submit('character-create',{name:'Ermittler',color:'#8aa6ff'});
+ a.submit('case-create',{title:'Waffenfund',caseNumber:'2026/101'});
+ const firstCase=a.rp.db.entities.find(item=>item.type==='case');
+ a.submit('case-create',{title:'Raubüberfall',caseNumber:'2026/202'});
+ const secondCase=a.rp.db.entities.find(item=>item.type==='case'&&item.id!==firstCase.id);
+ a.submit('evidence-report-import',{caseRecordId:firstCase.id,reportText:'Probennummer: #a4f2871, #b5c3982\nHülse 1: Pistol\nHülse 2: Heavy Pistol\nErgebnis: Übereinstimmung'});
+ a.submit('evidence-report-import',{caseRecordId:secondCase.id,reportText:'Probennummer: #c6d4093, #d7e5104\nHülse 1: Rifle\nHülse 2: Shotgun\nErgebnis: Übereinstimmung'});
+ a.click('[data-nav]',{nav:'evidence'});
+ const content=a.elements['#content'].innerHTML;
+ assert.match(content,/Erkannte Waffen pro Fall/);
+ assert.match(content,/2026\/101[\s\S]*?#a4f2871[\s\S]*?Pistol[\s\S]*?#b5c3982[\s\S]*?Heavy Pistol/);
+ assert.match(content,/2026\/202[\s\S]*?#c6d4093[\s\S]*?Rifle[\s\S]*?#d7e5104[\s\S]*?Shotgun/);
+ assert.equal(a.rp.db.evidence.every(item=>item.caseRecordId===firstCase.id||item.caseRecordId===secondCase.id),true);
+});
+
+test('Laborberichte verknüpfen passende Hülsen und trennen nicht passende Waffen',()=>{
+ const a=app();
+ a.submit('character-create',{name:'Ermittler',color:'#8aa6ff'});
+ a.submit('evidence-report-import',{reportText:'Probennummer: #a4f2871, #b5c3982\nHülse 1: Pistol\nHülse 2: Pistol\nErgebnis: Die Hülsen weisen das selbe Profil auf'});
+ const matched=a.rp.db.evidence;
+ assert.equal(a.rp.db.weapons.length,1);
+ assert.equal(matched[0].weaponId,matched[1].weaponId);
+ a.submit('evidence-report-import',{reportText:'Probennummer: #c6d4093, #d7e5104\nHülse 1: Rifle\nHülse 2: Shotgun\nErgebnis: Die Hülsen weisen nicht das selbe Profil auf'});
+ const unmatched=a.rp.db.evidence.slice(2);
+ assert.equal(a.rp.db.weapons.length,3);
+ assert.ok(unmatched[0].weaponId&&unmatched[1].weaponId);
+ assert.notEqual(unmatched[0].weaponId,unmatched[1].weaponId);
+ a.submit('evidence-report-import',{reportText:'Probennummer: #e8f6215, #f9a7326\nHülse 1: SMG\nHülse 2: Rifle\nErgebnis: Die Hülsen weisen eine unterschiedliche Waffe auf'});
+ const different=a.rp.db.evidence.slice(4);
+ assert.equal(a.rp.db.weapons.length,5);
+ assert.notEqual(different[0].weaponId,different[1].weaponId);
+});
+
+test('Waffen lassen sich manuell verwalten und Evidence-Backups enthalten sie',()=>{
+ const a=app();
+ a.submit('character-create',{name:'Ermittler',color:'#8aa6ff'});
+ a.submit('weapon-create',{weaponType:'9x19mm 92fs',serialNumber:'1234567890123456',suspect:'Alex'});
+ const weapon=a.rp.db.weapons[0];
+ a.submit('evidence-create',{caseId:'#a4f2871',weaponId:weapon.id});
+ a.submit('evidence-create',{caseId:'#b5c3982'});
+ const unassigned=a.rp.db.evidence[1];
+ a.changeEvidenceWeapon(unassigned.id,weapon.id);
+ assert.equal(unassigned.weaponId,weapon.id);
+ assert.equal(a.rp.db.evidence[0].weaponId,weapon.id);
+ a.submit('weapon-save',{weaponType:'9x19mm VF 226',serialNumber:'1234567890123456',suspect:'Alex',notes:'Laborzuordnung'},weapon.id);
+ assert.equal(weapon.weaponType,'9x19mm VF 226');
+ a.click('[data-nav]',{nav:'evidence'});
+ assert.match(a.elements['#content'].innerHTML,/9x19mm VF 226[\s\S]*?Hülsen: #a4f2871/);
+ a.click('[data-action]',{action:'delete-weapon',id:weapon.id});
+ assert.equal(a.rp.db.weapons.length,0);
+ assert.equal(a.rp.db.evidence.length,2);
+ assert.ok(a.rp.db.evidence.every(item=>item.weaponId===''));
+});
+
+test('MATCH führt zwei zuvor getrennte Waffen zusammen und speichert die Berichtsnummer',()=>{
+ const a=app();
+ a.submit('character-create',{name:'Ermittler',color:'#8aa6ff'});
+ a.submit('weapon-create',{weaponType:'Pistol'});
+ const firstWeapon=a.rp.db.weapons[0];
+ a.submit('weapon-create',{weaponType:'Pistol'});
+ const secondWeapon=a.rp.db.weapons[1];
+ a.submit('evidence-create',{caseId:'#a4f2871',weaponId:firstWeapon.id});
+ a.submit('evidence-create',{caseId:'#b5c3982',weaponId:secondWeapon.id});
+ a.submit('evidence-report-import',{reportId:'#123abcd',reportText:'Probennummer: #a4f2871, #b5c3982\nHülse 1: Pistol\nHülse 2: Pistol\nErgebnis: Die Hülsen weisen das selbe Profil auf'});
+ assert.equal(a.rp.db.weapons.length,1);
+ assert.equal(a.rp.db.evidence[0].weaponId,a.rp.db.evidence[1].weaponId);
+ assert.equal(a.rp.db.evidenceReports[0].reportId,'#123abcd');
+});
+
+test('Ungültiger leerer Hülsentyp wird beim Laborbericht-Import zurückgewiesen',()=>{
+ const a=app();
+ a.submit('character-create',{name:'Ermittler',color:'#8aa6ff'});
+ a.submit('evidence-report-import',{reportText:'Probennummer: #a4f2871, #b5c3982\nHülse 1: \nHülse 2: Pistol\nErgebnis: Übereinstimmung'});
+ assert.equal(a.rp.db.evidence.length,0);
+ assert.equal(a.rp.db.weapons.length,0);
+});
+
+test('Importvorschau, manuelle Vergleiche und Evidence-Berichte bleiben synchron',()=>{
+ const a=app();
+ a.submit('character-create',{name:'Ermittler',color:'#8aa6ff'});
+ const reportText='Probennummer: #a4f2871, #b5c3982\nHülse 1: Pistol\nHülse 2: Pistol\nErgebnis: Die Hülsen weisen das selbe Profil auf';
+ const preview=a.inputEvidenceReport(reportText);
+ assert.match(preview,/#a4f2871[\s\S]*?#b5c3982[\s\S]*?Pistol[\s\S]*?Übereinstimmung/);
+ a.submit('evidence-create',{caseId:'#a4f2871',weaponType:'Pistol'});
+ a.submit('evidence-create',{caseId:'#b5c3982',weaponType:'Pistol'});
+ const first=a.rp.db.evidence[0];
+ a.submit('evidence-compare',{case1:first.id,case2:a.rp.db.evidence[1].id,result:'MATCH',reportId:'#123abcd'});
+ const comparison=a.rp.db.evidenceReports[0];
+ assert.equal(a.rp.db.weapons.length,1);
+ assert.equal(a.rp.db.evidence[0].weaponId,a.rp.db.evidence[1].weaponId);
+ a.submit('evidence-report-save',{reportId:'#456def0'},comparison.id);
+ assert.equal(comparison.reportId,'#456def0');
+ a.submit('evidence-save',{caseId:'#c6d4093',weaponId:first.weaponId,weaponType:'Pistol'},first.id);
+ assert.equal(comparison.caseId1,'#c6d4093');
+ const summary=a.pages.investigations.evidenceSummaryReport(a.rp.scoped('weapons'),a.rp.scoped('evidence'),a.rp.scoped('evidenceReports'));
+ assert.match(summary,/WAFFE 1[\s\S]*?#c6d4093[\s\S]*?#b5c3982[\s\S]*?Übereinstimmung/);
+ a.click('[data-nav]',{nav:'evidence'});
+ assert.match(a.elements['#content'].innerHTML,/data-evidence-report-preview/);
+ assert.match(a.elements['#content'].innerHTML,/Bericht kopieren/);
+ a.click('[data-action]',{action:'evidence-summary-export'});
+ assert.equal(a.downloads.length,1);
+});
+
+test('Evidence-Modul-Backup enthält Waffen, Hülsen und Laborberichte',async()=>{
+ const a=app();
+ a.submit('character-create',{name:'Ermittler',color:'#8aa6ff'});
+ a.submit('weapon-create',{weaponType:'Pistol'});
+ a.submit('evidence-create',{caseId:'#a4f2871',weaponId:a.rp.db.weapons[0].id});
+ a.submit('evidence-create',{caseId:'#b5c3982',weaponType:'Pistol'});
+ a.submit('evidence-compare',{case1:a.rp.db.evidence[0].id,case2:a.rp.db.evidence[1].id,result:'MATCH'});
+ assert.equal(a.rp.db.weapons.length,1);
+ a.rp.$('#backup-module-select').value='evidence';
+ a.click('[data-action]',{action:'export-module'});
+ const backup=JSON.parse(await a.downloads[0].text());
+ assert.equal(backup.evidence.length,2);
+ assert.equal(backup.weapons.length,1);
+ assert.equal(backup.evidenceReports.length,1);
 });
 
 test('Sichtbarkeit gilt pro Charakter, einschließlich Dashboard und Wechsel der aktiven Seite',()=>{
