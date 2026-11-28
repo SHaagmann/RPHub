@@ -51,6 +51,11 @@ function app(initialData) {
  function visibility(page,checked) {
   listeners.change({target:{dataset:{toolVisibility:page},checked,matches:query=>query==='[data-tool-visibility]'}});
  }
+ function rolePreview(value){
+  const preview={textContent:''},form={querySelector:()=>preview};
+  listeners.change({target:{value,matches:query=>query==='[data-role-preset]',closest:()=>form}});
+  return preview.textContent;
+ }
  function input(selector,value){
   const target=element(selector);target.value=value;target.matches=query=>query===selector;target.selectionStart=String(value).length;
   listeners.input({target});
@@ -62,13 +67,41 @@ function app(initialData) {
   return preview.innerHTML;
  }
  function keydown(event){listeners.keydown({...event,preventDefault:event.preventDefault||function(){}})}
- return {rp:window.RPDesk,pages:window.RPDeskPages,submit,click,change,changeEvidenceWeapon,visibility,input,inputEvidenceReport,keydown,elements,storage,downloads};
+ return {rp:window.RPDesk,pages:window.RPDeskPages,submit,click,change,changeEvidenceWeapon,visibility,rolePreview,input,inputEvidenceReport,keydown,elements,storage,downloads};
 }
+
+test('Patientenliste speichert Geburtstage und ist nach Charakter getrennt',()=>{
+ const a=app();
+ a.submit('character-create',{name:'Medic'});
+ const first=a.rp.char().id, birthday=`1990-${a.rp.today().slice(5)}`;
+ a.submit('medic-save',{firstName:'Alex',lastName:'Muster',birthday,privateSince:'2025-01-01',bloodType:'A+',allergies:'Laktose',notes:'Notiz',marked:'on'});
+ const patient=a.rp.db.medics[0];
+ a.click('[data-nav]',{nav:'medics'});
+ assert.match(a.elements['#content'].innerHTML,/Heute[\s\S]*Alex Muster/);
+ assert.match(a.elements['#content'].innerHTML,/Laktose/);
+ assert.match(a.elements['#content'].innerHTML,/medic-marked/);
+ a.submit('medic-save',{firstName:'Alex',lastName:'Muster',birthday:'1990-01-01',bloodType:'0-',allergies:'keine'},patient.id);
+ assert.equal(patient.bloodType,'0-');
+ assert.equal(patient.marked,false);
+ assert.equal(a.rp.validImport(JSON.parse(a.storage['rp-desk-data-v1'])),true);
+ const broken=JSON.parse(a.storage['rp-desk-data-v1']);broken.medics[0].lastName=null;
+ assert.equal(a.rp.validImport(broken),false);
+ a.elements['#backup-module-select']={value:'medics'};
+ a.click('[data-action]',{action:'export-module'});
+ assert.equal(a.downloads.length,1);
+ a.submit('character-create',{name:'Andere'});
+ assert.equal(a.rp.scoped('medics').length,0);
+ a.change('character-select',first);
+ assert.equal(a.rp.scoped('medics').length,1);
+ assert.equal(JSON.parse(a.storage['rp-desk-data-v1']).medics.length,1);
+ a.click('[data-action]',{action:'delete-medic',id:patient.id});
+ assert.equal(a.rp.db.medics.length,0);
+});
 
 test('Changelog ist ohne Charakter erreichbar und zeigt die aktuelle Version',()=>{
  const a=app();
  assert.match(a.elements['#navigation'].innerHTML,/data-nav="changelog"/);
- assert.equal(a.elements['#app-version'].textContent,'v2.1');
+ assert.equal(a.elements['#app-version'].textContent,'v2.3');
  a.click('[data-nav]',{nav:'changelog'});
  assert.match(a.elements['#content'].innerHTML,/Version 2\.1/);
  assert.match(a.elements['#content'].innerHTML,/Version 2\.0/);
@@ -236,6 +269,28 @@ test('NO_MATCH trennt Hülsen, die zuvor derselben Waffe zugeordnet waren',()=>{
  assert.equal(a.rp.db.evidence[0].weaponId,a.rp.db.evidence[1].weaponId);
  a.submit('evidence-report-import',{reportText:'Probennummer: #a4f2871, #b5c3982\nHülse 1: Pistol\nHülse 2: Pistol\nErgebnis: Die Hülsen weisen nicht das selbe Profil auf'});
  assert.notEqual(a.rp.db.evidence[0].weaponId,a.rp.db.evidence[1].weaponId);
+});
+
+test('Rollenvorlagen bestimmen die Sichtbarkeit und bleiben individuell veränderbar',()=>{
+ const a=app();
+ assert.match(a.elements['#content'].innerHTML,/name="rolePreset"[\s\S]*Polizei[\s\S]*Medic[\s\S]*Mechaniker[\s\S]*Zivilist/);
+ assert.match(a.rolePreview('medic'),/Patientenliste/);
+ assert.doesNotMatch(a.rolePreview('medic'),/Ermittlungsakten/);
+ for(const [role,visible,hidden] of [['police','cases','medics'],['medic','medics','cases'],['mechanic','inventory','cases'],['civilian','minigolf','medics']]){
+  a.submit('character-create',{name:role,rolePreset:role});
+  assert.equal(a.rp.toolVisible(visible),true);
+  assert.equal(a.rp.toolVisible(hidden),false);
+  assert.equal(a.rp.toolVisible('settings'),true);
+ }
+ a.visibility('medics',true);
+ assert.equal(a.rp.toolVisible('medics'),true);
+ const reloaded=app(JSON.parse(a.storage['rp-desk-data-v1']));
+ reloaded.change('character-select',a.rp.char().id);
+ assert.equal(reloaded.rp.toolVisible('medics'),true);
+ a.click('[data-nav]',{nav:'characters'});
+ assert.match(a.elements['#content'].innerHTML,/name="rolePreset"/);
+ a.submit('character-create',{name:'Alle',rolePreset:'all'});
+ assert.equal(a.rp.char().hiddenTools.length,0);
 });
 
 test('Sichtbarkeit gilt pro Charakter, einschließlich Dashboard und Wechsel der aktiven Seite',()=>{
@@ -505,4 +560,10 @@ test('Dashboard-Widgets, Favoriten und eigene Schnellzugriffe bleiben charakterb
  a.click('[data-action]',{action:'switch-char',id:first.id});
  assert.equal(a.rp.char().dashboardWidgets.includes('note'),false);
  assert.equal(a.rp.char().quickLinks[0].label,'Akten');
+ a.click('[data-nav]',{nav:'dashboard'});
+ const dashboard=a.elements['#content'].innerHTML;
+ assert.match(dashboard,/class="quick-card"/);
+ assert.match(dashboard,/class="quick-manager"/);
+ assert.match(dashboard,/class="quick-custom-item"/);
+ assert.doesNotMatch(dashboard,/class="chip-row mt-12"/);
 });

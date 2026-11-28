@@ -3,8 +3,8 @@
 const {CATEGORIES,TITLES,ICONS,ico,$,esc,id,today,datetimeLocal,formatDate,fmtMoney,empty,field,textareaField,btn,head,uid,THEME_PRESETS,hexToRgb,rgbToHex,mixColors,applyTheme,compressImage,defaultSnippetsForChar,defaultData,REQUIRED_COLLECTIONS,OPTIONAL_COLLECTIONS,validImport,normalizeData,load,db,ui,persist,toast,char,scoped,collectionItem,sel,layoutBoardImages,openImageViewer,updateImageViewer,changeImageZoom,copyText,fallbackCopy,download,dataField,status,val,headlinePanel,listPane,renderDateTimeMeta,badge,replaceData}=window.RPDesk;
 const {toolVisible}=window.RPDesk;
 const pageModules=Object.assign({},window.RPDeskPages.dashboard,window.RPDeskPages.changelog,window.RPDeskPages.investigations,window.RPDeskPages.workspace,window.RPDeskPages.leisure,window.RPDeskPages.records,window.RPDeskPages.map);
-const {APP_VERSION,pageDashboard,pageChangelog,pageCharacters,pageSettings,pageBoard,interviewReport,pageInterviews,evidencePairKey,evidenceResultLabel,evidenceResultKind,parseEvidenceLabReport,evidenceSummaryReport,pageEvidence,leaseCalc,pageLeases,pageNotes,pageTime,pageMinigolf,pageSnippets,pageTimeline,pageTasks,pageInventory,pageFinances,pageCases,pageDeadlines,pageMap,recordReport}=pageModules;
-const pages={dashboard:pageDashboard,changelog:pageChangelog,characters:pageCharacters,settings:pageSettings,cases:pageCases,deadlines:pageDeadlines,map:pageMap,board:pageBoard,interviews:pageInterviews,evidence:pageEvidence,leases:pageLeases,notes:pageNotes,time:pageTime,minigolf:pageMinigolf,snippets:pageSnippets,timeline:pageTimeline,tasks:pageTasks,inventory:pageInventory,finances:pageFinances};
+const {APP_VERSION,pageDashboard,pageChangelog,pageCharacters,pageSettings,pageBoard,interviewReport,pageInterviews,evidencePairKey,evidenceResultLabel,evidenceResultKind,parseEvidenceLabReport,evidenceSummaryReport,pageEvidence,leaseCalc,pageLeases,pageNotes,pageTime,pageMinigolf,pageSnippets,pageTimeline,pageTasks,pageInventory,pageFinances,pageMedics,pageCases,pageDeadlines,pageMap,recordReport}=pageModules;
+const pages={dashboard:pageDashboard,changelog:pageChangelog,characters:pageCharacters,settings:pageSettings,cases:pageCases,deadlines:pageDeadlines,map:pageMap,board:pageBoard,interviews:pageInterviews,evidence:pageEvidence,leases:pageLeases,notes:pageNotes,time:pageTime,minigolf:pageMinigolf,snippets:pageSnippets,timeline:pageTimeline,tasks:pageTasks,inventory:pageInventory,finances:pageFinances,medics:pageMedics};
 function setPage(page){if(!TITLES[page]||!toolVisible(page))return;ui.page=page;$('#sidebar').classList.remove('open');$('#sidebar-backdrop').classList.remove('show');render();window.scrollTo({top:0,behavior:'auto'});}
 function renderNavigation(){let html='';for(const group of CATEGORIES){const items=group.items.filter(([page])=>toolVisible(page));if(!items.length)continue;html+=`<div class="nav-group"><div class="nav-group-label">${esc(group.heading)}</div>`;for(const [p,title,icon] of items)html+=`<button class="nav-item ${ui.page===p?'active':''}" data-nav="${p}" ${ui.page===p?'aria-current="page"':''}>${ico(icon)}<span>${esc(title)}</span></button>`;html+='</div>'; }$('#navigation').innerHTML=html;}
 function render(){
@@ -31,7 +31,7 @@ function openGlobalSearch(){
  ui.searchActiveIndex=0;renderGlobalSearch();input?.focus();
 }
 function saveAndRender(message){const saved=persist();render();if(saved&&message)toast(message)}
-function clearLeisureState(){ui.editInventory=null;ui.editFinance=null;ui.costCalculation=null}
+function clearLeisureState(){ui.editInventory=null;ui.editFinance=null;ui.editMedic=null;ui.costCalculation=null}
 function assignEvidenceWeapons(first,second,parsed,currentChar){
  const firstWeapon=db.weapons.find(item=>item.id===first.weaponId&&item.charId===currentChar);
  const secondWeapon=db.weapons.find(item=>item.id===second.weaponId&&item.charId===currentChar);
@@ -203,6 +203,15 @@ function handleForm(f){if(window.RPDeskPages.map?.handleSubmit(f))return;const k
   if(item)Object.assign(item,{name,quantity,price});else db.inventory.push({id:uid('inventory'),charId:currentChar,name,quantity,price});
   ui.editInventory=null;saveAndRender('Artikel gespeichert.');break
  }
+ case 'medic-save': {
+  if(!currentChar)return;
+  const firstName=val(f,'firstName'),lastName=val(f,'lastName'),bloodType=val(f,'bloodType');
+  if(!firstName||!lastName||!['','A+','A-','B+','B-','AB+','AB-','0+','0-'].includes(bloodType)){toast('Bitte Namen und eine gültige Blutgruppe angeben.',true);return}
+  const patient=f.dataset.id?collectionItem('medics',f.dataset.id):null;if(f.dataset.id&&!patient)return;
+  const fields={firstName,lastName,privateSince:val(f,'privateSince'),birthday:val(f,'birthday'),bloodType,allergies:val(f,'allergies'),notes:val(f,'notes'),marked:new FormData(f).has('marked')};
+  if(patient)Object.assign(patient,fields);else db.medics.push({id:uid('medic'),charId:currentChar,...fields});
+  ui.editMedic=null;saveAndRender('Patient gespeichert.');break
+ }
  case 'finance-save': {
   if(!currentChar)return;
   const description=val(f,'description'),type=val(f,'type'),rawAmount=val(f,'amount'),amount=Number(rawAmount),date=val(f,'date');
@@ -214,10 +223,13 @@ function handleForm(f){if(window.RPDeskPages.map?.handleSubmit(f))return;const k
  }
  case 'character-create': {
   const name=val(f,'name');if(!name)return;
+  const role=Object.hasOwn(window.RPDesk.ROLE_PRESETS,val(f,'rolePreset'))?val(f,'rolePreset'):'all';
+  const visible=new Set(window.RPDesk.roleTools(role).map(([page])=>page));
   const ch={
    id: uid('char'),
    name,
-   subtitle: val(f,'subtitle'),
+  subtitle: val(f,'subtitle')||(role==='all'?'':window.RPDesk.ROLE_PRESETS[role].label),
+  hiddenTools: CATEGORIES.slice(1).flatMap(group=>group.items.map(([page])=>page)).filter(page=>!visible.has(page)),
    color: val(f,'color')||'#8aa6ff',
    bgColor: val(f,'bgColor')||'#0b1019',
    sidebarColor: '',
@@ -387,6 +399,9 @@ function handleAction(el){const action=el.dataset.action, value=el.dataset.value
  }
  if(action==='widget-reset'){const current=char();if(current){delete current.dashboardWidgets;saveAndRender('Standardlayout wiederhergestellt.')}return}
  if(action==='edit-inventory'||action==='edit-finance'){const collection=action==='edit-inventory'?'inventory':'finances';if(!collectionItem(collection,itemId))return;ui[collection==='inventory'?'editInventory':'editFinance']=itemId;render();return}
+ if(action==='edit-medic'){if(!collectionItem('medics',itemId))return;ui.editMedic=itemId;render();return}
+ if(action==='cancel-medic-edit'){ui.editMedic=null;render();return}
+ if(action==='delete-medic'){removeItem('medics',itemId);if(ui.editMedic===itemId&&!collectionItem('medics',itemId)){ui.editMedic=null;render()}return}
  if(action==='cancel-inventory-edit'||action==='cancel-finance-edit'){ui[action==='cancel-inventory-edit'?'editInventory':'editFinance']=null;render();return}
  if(action==='golf-stroke'||action==='golf-undo'){const round=collectionItem('minigolf',el.dataset.roundId),holeIndex=Number(el.dataset.holeIndex),player=round?.players.find(item=>item.id===el.dataset.playerId);if(!player||!Number.isInteger(holeIndex)||holeIndex<0||holeIndex>=round.holes.length)return;const currentScore=Number(player.scores[holeIndex])||0;if(action==='golf-stroke'){if(currentScore>=20){toast('Maximal 20 Schläge pro Bahn.',true);return}player.scores[holeIndex]=currentScore+1}else{if(currentScore<=0)return;player.scores[holeIndex]=currentScore===1?null:currentScore-1}persist();render();return}
  if(action==='delete-golf-round'){const round=collectionItem('minigolf',itemId);if(!round||!confirm(`Minigolf-Runde „${round.course}“ löschen?`))return;db.minigolf=db.minigolf.filter(item=>item.id!==itemId);ui.selection.minigolf=null;saveAndRender('Minigolf-Runde gelöscht.');return}
@@ -588,6 +603,7 @@ document.addEventListener('input',e=>{const t=e.target;
 });
 document.addEventListener('change',async e=>{const t=e.target;
  if(window.RPDeskPages.map?.handleChange(e))return;
+ if(t.matches('[data-role-preset]')){const preview=t.closest('form')?.querySelector('[data-role-preview]');if(preview)preview.textContent=`Sichtbar: ${window.RPDesk.roleTools(t.value).map(([,title])=>title).join(', ')}`;return}
  if(t.matches('[data-evidence-weapon]')){
   const item=collectionItem('evidence',t.dataset.evidenceWeapon),weapon=db.weapons.find(entry=>entry.id===t.value&&entry.charId===char()?.id);
   if(!item)return;

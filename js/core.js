@@ -8,13 +8,23 @@ const ENTITY_TYPES = ['case','person','vehicle','organization','evidence','note'
 const CATEGORIES = [
   {heading:'ALLGEMEIN',items:[['dashboard','Übersicht','home'],['characters','Charaktere','users'],['settings','Tool-Einstellungen','check'],['changelog','Changelog','file']]},
   {heading:'PD-HUB',items:[['cases','Ermittlungsakten','file'],['directory','Personen & Fahrzeuge','users'],['deadlines','Fristen','calendar'],['map','RP-Karte','pin'],['board','Ermittlungs-Pinnwand','network'],['interviews','Vernehmungen','file'],['evidence','Evidence-Vergleich','search'],['timeline','Einsatz-Timeline','calendar'],['snippets','Beschlussvorlagen','copy']]},
+  {heading:'MEDIC-HUB',items:[['medics','Patientenliste','medical']]},
   {heading:'FREIZEIT',items:[['inventory','Lager & Rechner','wallet'],['finances','Einnahmen & Ausgaben','wallet'],['minigolf','Minigolf-Tracking','flag']]},
   {heading:'ORGANISATION & TOOLS',items:[['tasks','Aufgaben','check'],['notes','Notizen','note'],['leases','Leasing & Raten','wallet'],['time','Zeitrechner','clock']]}
 ];
 const TITLES = Object.fromEntries(CATEGORIES.flatMap(g=>g.items.map(([id,title])=>[id,title])));
+const ROLE_PRESETS = {
+ all:{label:'Alle Tools',tools:null},
+ police:{label:'Polizei',tools:['cases','directory','deadlines','map','board','interviews','evidence','timeline','snippets','tasks','notes','time']},
+ medic:{label:'Medic',tools:['medics','map','tasks','notes','time']},
+ mechanic:{label:'Mechaniker',tools:['inventory','finances','leases','tasks','notes','time']},
+ civilian:{label:'Zivilist',tools:['inventory','finances','minigolf','leases','tasks','notes','time']}
+};
+const roleTools = role => {const preset=ROLE_PRESETS[role]||ROLE_PRESETS.all;return CATEGORIES.slice(1).flatMap(group=>group.items).filter(([page])=>!preset.tools||preset.tools.includes(page))};
 const ICONS = {
   home:'<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
   users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+  medical:'<path d="M12 3v18M3 12h18"/>',
   network:'<rect x="2" y="2" width="6" height="6" rx="1"/><rect x="16" y="2" width="6" height="6" rx="1"/><rect x="9" y="16" width="6" height="6" rx="1"/><path d="M8 5h8M5 8v4h7v4M19 8v4h-7"/>',
   file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h8"/>',
   check:'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="m8 12 3 3 5-6"/>',
@@ -191,11 +201,12 @@ const defaultData = () => ({
   weapons: [],
   inventory: [],
   finances: [],
+  medics: [],
   entities: [],
   relationships: []
 });
 const REQUIRED_COLLECTIONS = ['characters','boards','interviews','leases','notes','timeline','tasks','snippets','minigolf'];
-const OPTIONAL_COLLECTIONS = ['minigolf','evidence','evidenceReports','weapons','inventory','finances'];
+const OPTIONAL_COLLECTIONS = ['minigolf','evidence','evidenceReports','weapons','inventory','finances','medics'];
 const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 function validEntity(entity){
  return isRecord(entity)
@@ -279,6 +290,7 @@ function validImport(v){
   ||(v.inventory&&!v.inventory.every(i=>typeof i?.id==='string'&&typeof i.charId==='string'&&typeof i.name==='string'&&Number.isInteger(i.quantity)&&i.quantity>=0&&i.quantity<=100000&&Number.isFinite(i.price)&&i.price>=0&&i.price<=1000000&&Math.abs(i.price*100-Math.round(i.price*100))<0.000001))
   ||(v.weapons&&!v.weapons.every(w=>typeof w?.id==='string'&&typeof w.charId==='string'&&typeof w.weaponType==='string'&&typeof w.serialNumber==='string'&&typeof w.notes==='string'&&(w.suspect===undefined||typeof w.suspect==='string')))
   ||(v.weapons||[]).some(w=>!v.characters.some(character=>character.id===w.charId))
+  ||(v.medics&&!v.medics.every(patient=>typeof patient?.id==='string'&&typeof patient.charId==='string'&&v.characters.some(character=>character.id===patient.charId)&&['firstName','lastName','privateSince','birthday','bloodType','allergies','notes'].every(key=>typeof patient[key]==='string')&&typeof patient.marked==='boolean'&&['','A+','A-','B+','B-','AB+','AB-','0+','0-'].includes(patient.bloodType)))
   ||(v.finances&&!v.finances.every(i=>typeof i?.id==='string'&&typeof i.charId==='string'&&typeof i.description==='string'&&['income','expense'].includes(i.type)&&Number.isFinite(i.amount)&&i.amount>=0.01&&i.amount<=1000000&&Math.abs(i.amount*100-Math.round(i.amount*100))<0.000001&&typeof i.date==='string')))return false;
  const ids=[...(v.entities||[]),...(v.relationships||[])].map(item=>item.id);
  const entityIds=new Set((v.entities||[]).map(entity=>entity.id));
@@ -474,5 +486,5 @@ function replaceData(data){
  persistenceBlocked=false;
  return db;
 }
-return {CATEGORIES,TITLES,ICONS,ico,$,esc,id,today,datetimeLocal,formatDate,fmtMoney,empty,field,textareaField,btn,head,uid,THEME_PRESETS,hexToRgb,rgbToHex,mixColors,applyTheme,compressImage,defaultSnippetsForChar,defaultData,SCHEMA_VERSION,ENTITY_TYPES,REQUIRED_COLLECTIONS,OPTIONAL_COLLECTIONS,validImport,normalizeData,load,db,ui,persist,toast,char,toolVisible,scoped,collectionItem,entity,entityForLegacy,entityFields,entityLabel,entityDescription,visibleEntity,createEntity,updateEntity,linkEntities,unlinkRelationship,relatedEntities,searchEntities,sel,layoutBoardImages,openImageViewer,updateImageViewer,changeImageZoom,copyText,fallbackCopy,download,dataField,status,val,headlinePanel,listPane,renderDateTimeMeta,badge,replaceData};
+return {CATEGORIES,TITLES,ROLE_PRESETS,roleTools,ICONS,ico,$,esc,id,today,datetimeLocal,formatDate,fmtMoney,empty,field,textareaField,btn,head,uid,THEME_PRESETS,hexToRgb,rgbToHex,mixColors,applyTheme,compressImage,defaultSnippetsForChar,defaultData,SCHEMA_VERSION,ENTITY_TYPES,REQUIRED_COLLECTIONS,OPTIONAL_COLLECTIONS,validImport,normalizeData,load,db,ui,persist,toast,char,toolVisible,scoped,collectionItem,entity,entityForLegacy,entityFields,entityLabel,entityDescription,visibleEntity,createEntity,updateEntity,linkEntities,unlinkRelationship,relatedEntities,searchEntities,sel,layoutBoardImages,openImageViewer,updateImageViewer,changeImageZoom,copyText,fallbackCopy,download,dataField,status,val,headlinePanel,listPane,renderDateTimeMeta,badge,replaceData};
 })();

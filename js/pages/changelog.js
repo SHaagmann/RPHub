@@ -2,8 +2,10 @@ window.RPDeskPages = window.RPDeskPages || {};
 window.RPDeskPages.changelog = (() => {
 'use strict';
 const {head,esc,formatDate,badge} = window.RPDesk;
-const APP_VERSION = '2.1';
+const APP_VERSION = '2.3';
 const CHANGELOG = [
+ {version:"2.3",date:"2026-11-28",type:"minor",changes:["Rollenvorlagen für die Charaktererstellung mit anpassbarer Tool-Sichtbarkeit"]},
+ {version:"2.2",date:"2026-11-28",type:"minor",changes:["Medic-Patientenliste mit Geburtstagsanzeige und Modul-Backup"]},
  {version:"2.1",date:"2026-11-12",type:"minor",changes:["GTA-V-Kartenmodul mit manueller Kalibrierung, Markern und Kartenobjekten"]},
  {version:"2.0",date:"2026-11-12",type:"major",changes:["Akten, zentrale Verknüpfungen, globale Suche, Fristen, RP-Karte, konfigurierbares Dashboard und installierbare PWA"]},
  {version:'1.2',date:'2026-11-12',type:'minor',changes:[

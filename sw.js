@@ -1,5 +1,5 @@
 'use strict';
-const CACHE_NAME = 'rp-desk-static-v2.1';
+const CACHE_NAME = 'rp-desk-static-v2.3';
 const SHELL_FILES = [
   './',
   './index.html',

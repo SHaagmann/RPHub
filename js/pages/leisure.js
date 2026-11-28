@@ -1,7 +1,25 @@
 window.RPDeskPages = window.RPDeskPages || {};
 window.RPDeskPages.leisure = (() => {
 'use strict';
-const {char,scoped,collectionItem,ui,head,empty,headlinePanel,field,btn,esc,fmtMoney,formatDate,today}=window.RPDesk;
+const {char,scoped,collectionItem,ui,head,empty,headlinePanel,field,textareaField,btn,esc,fmtMoney,formatDate,today}=window.RPDesk;
+
+function pageMedics(){
+ if(!char())return `${head('Patientenliste','')}${empty('Bitte lege zuerst einen Charakter an.')}`;
+ const patients=scoped('medics').slice().sort((first,second)=>first.lastName.localeCompare(second.lastName,'de')||first.firstName.localeCompare(second.firstName,'de'));
+ const birthdays=patients.filter(patient=>patient.birthday&&patient.birthday.slice(5)===today().slice(5));
+ const query=(ui.search.medics||'').trim().toLocaleLowerCase('de');
+ const visible=patients.filter(patient=>[patient.firstName,patient.lastName,patient.bloodType,patient.allergies,patient.notes].some(value=>String(value||'').toLocaleLowerCase('de').includes(query)));
+ const edit=collectionItem('medics',ui.editMedic);
+ const bloodTypes=['','A+','A-','B+','B-','AB+','AB-','0+','0-'];
+ return `${head('Patientenliste','Privatpatienten und medizinische Angaben.')}
+ <section class="medic-birthdays" aria-live="polite"><div><span class="medic-kicker">GEBURTSTAGE</span><h2>Heute</h2></div><p>${birthdays.length?birthdays.map(patient=>esc(`${patient.firstName} ${patient.lastName}`)).join(' · '):'Heute hat niemand Geburtstag.'}</p><span class="badge">${birthdays.length}</span></section>
+ <section class="panel panel-pad medic-list"><div class="panel-head"><h2>Patientenübersicht <span class="badge">${patients.length}</span></h2><input class="search-field medic-search" type="search" data-search="medics" value="${esc(ui.search.medics||'')}" placeholder="Patienten suchen" aria-label="Patienten suchen"></div>
+ <div class="table-wrap"><table class="data-table medic-table"><thead><tr><th>Vorname</th><th>Name</th><th>Privatpatient seit</th><th>Geburtstag</th><th>Blutgruppe</th><th>Allergien</th><th>Notizen</th><th>Aktionen</th></tr></thead><tbody>${visible.map(patient=>`<tr class="${patient.marked?'medic-marked':''}"><td>${esc(patient.firstName)}</td><td>${esc(patient.lastName)}</td><td>${esc(formatDate(patient.privateSince))}</td><td>${esc(formatDate(patient.birthday))}</td><td>${esc(patient.bloodType||'–')}</td><td>${esc(patient.allergies||'–')}</td><td>${esc(patient.notes||'–')}</td><td><div class="table-actions">${btn('edit-medic','Bearbeiten','button-quiet button-small',`data-id="${esc(patient.id)}"`)}${btn('delete-medic','Löschen','button-danger button-small',`data-id="${esc(patient.id)}"`)}</div></td></tr>`).join('')||'<tr><td colspan="8">Keine Patienten gefunden.</td></tr>'}</tbody></table></div></section>
+ <section class="panel panel-pad medic-form">${headlinePanel(edit?'Patient bearbeiten':'Patient hinzufügen')}<form data-form="medic-save" ${edit?`data-id="${esc(edit.id)}"`:''}><div class="form-grid">
+ ${field('Vorname','firstName',edit?.firstName||'','text','required maxlength="100"')}${field('Name','lastName',edit?.lastName||'','text','required maxlength="100"')}${field('Privatpatient seit','privateSince',edit?.privateSince||'','date')}${field('Geburtstag','birthday',edit?.birthday||'','date')}
+ <div class="field"><label>Blutgruppe</label><select name="bloodType">${bloodTypes.map(type=>`<option value="${esc(type)}" ${type===(edit?.bloodType||'')?'selected':''}>${esc(type||'Nicht angegeben')}</option>`).join('')}</select></div>${textareaField('Allergien','allergies',edit?.allergies||'',2,'maxlength="1000"')}${textareaField('Notizen','notes',edit?.notes||'',2,'maxlength="1000"')}
+ <label class="tool-setting"><input type="checkbox" name="marked" ${edit?.marked?'checked':''}> Patient markieren</label></div><div class="form-actions"><button class="button">Patient speichern</button>${edit?btn('cancel-medic-edit','Abbrechen'):''}</div></form></section>`;
+}
 
 function pageInventory(){
  if(!char())return `${head('Lager & Rechner','Bestände und Kosten für Tuning und andere Projekte verwalten.')}${empty('Bitte lege zuerst einen Charakter an.')}`;
@@ -38,5 +56,5 @@ function pageFinances(){
  <section class="panel panel-pad span-6">${headlinePanel('Buchungen')}<div class="table-wrap"><table class="mini-table"><thead><tr><th>Datum</th><th>Beschreibung</th><th>Art</th><th>Betrag</th><th>Aktionen</th></tr></thead><tbody>
  ${entries.map(item=>`<tr><td>${formatDate(item.date)}</td><td>${esc(item.description)}</td><td>${item.type==='income'?'Einnahme':'Ausgabe'}</td><td>${fmtMoney(item.amount)}</td><td><div class="table-actions">${btn('edit-finance','Bearbeiten','button-quiet button-small',`data-id="${esc(item.id)}"`)}${btn('delete-finance','Löschen','button-danger button-small',`data-id="${esc(item.id)}"`)}</div></td></tr>`).join('')||'<tr><td colspan="5" class="muted">Noch keine Buchungen vorhanden.</td></tr>'}</tbody></table></div></section></div>`;
 }
-return {pageInventory,pageFinances};
+return {pageInventory,pageFinances,pageMedics};
 })();

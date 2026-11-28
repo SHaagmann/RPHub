@@ -79,11 +79,40 @@ a{color:var(--accent)}
 .hero p{max-width:610px;color:#b0bfd5;margin:0;line-height:1.65}
 .hero-tag{color:var(--accent);font-size:10px;font-weight:800;letter-spacing:.18em;margin-bottom:13px}
 .hero-art{font-size:60px;opacity:.17;font-weight:900;letter-spacing:-.09em;padding:0 25px}
-.quick-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}
-.quick-link{display:flex;text-align:left;gap:12px;align-items:center;padding:15px;background:var(--card-hi);border:1px solid var(--border);border-radius:10px;color:var(--text);font-weight:680}
-.quick-link:hover{border-color:var(--accent);background:var(--card)}
-.quick-icon{width:35px;height:35px;border-radius:9px;background:var(--card);display:grid;place-items:center;color:var(--accent);border:1px solid var(--border)}
+.quick-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,145px),1fr));gap:8px}
+.quick-card,.quick-custom-item{position:relative;min-width:0}
+.quick-link{width:100%;min-height:62px;display:flex;text-align:left;gap:10px;align-items:center;padding:10px 36px 10px 10px;background:linear-gradient(145deg,var(--card-hi),var(--card));border:1px solid var(--border);border-radius:8px;color:var(--text);font-weight:680;transition:border-color .15s,background .15s,transform .15s}
+.quick-link:hover{border-color:var(--accent);background:var(--card);transform:translateY(-1px)}
+.quick-icon{width:32px;height:32px;flex:0 0 32px;border-radius:8px;background:var(--input-bg);display:grid;place-items:center;color:var(--accent);border:1px solid var(--border)}
 .quick-icon svg{width:18px;height:18px}
+.quick-link-label{min-width:0;overflow-wrap:anywhere;font-size:12px;line-height:1.3}
+.quick-link-arrow{margin-left:auto;color:var(--muted);font-size:13px;line-height:1}
+.quick-remove,.quick-custom-remove{position:absolute;z-index:1;top:50%;right:6px;transform:translateY(-50%);width:24px;height:24px;padding:0;border:1px solid transparent;border-radius:6px;background:var(--card);color:var(--muted);font-size:15px;opacity:.72;transition:opacity .15s,color .15s,border-color .15s}
+.quick-card:hover .quick-remove,.quick-card:focus-within .quick-remove,.quick-custom-item:hover .quick-custom-remove,.quick-custom-item:focus-within .quick-custom-remove{opacity:1;color:var(--text);border-color:var(--border)}
+.quick-manager{margin-top:10px;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.quick-manager>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 2px;color:var(--soft);font-size:11px;font-weight:700;cursor:pointer;list-style:none}
+.quick-manager>summary::-webkit-details-marker,.quick-custom-add>summary::-webkit-details-marker{display:none}
+.quick-manager>summary:after{content:'⌄';color:var(--muted);font-size:14px}
+.quick-manager[open]>summary:after{content:'⌃'}
+.quick-manager>summary small,.quick-custom-head small{color:var(--muted);font-size:10px;font-weight:500}
+.quick-manager-body{padding:0 0 11px}
+.quick-manager-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:9px}
+.quick-manager-controls .button{min-width:96px}
+.quick-custom{margin-top:14px}
+.quick-custom-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.quick-custom-head h4{margin:0 0 3px;font-size:12px}
+.quick-custom-add>summary{display:flex;align-items:center;gap:5px;padding:7px 9px;border:1px solid var(--border);border-radius:7px;color:var(--soft);font-size:10px;font-weight:650;cursor:pointer;list-style:none}
+.quick-custom-add>summary:hover{border-color:var(--accent);color:var(--text)}
+.quick-custom-form{margin-top:9px;padding:11px;border:1px solid var(--border);border-radius:8px;background:var(--input-bg)}
+.quick-custom-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:7px;margin-top:10px}
+.quick-custom-link{width:100%;min-width:0;min-height:44px;display:flex;align-items:center;gap:8px;padding:7px 34px 7px 8px;text-align:left;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--text)}
+.quick-custom-link:hover{background:var(--card-hi);border-color:#40537b}
+.quick-custom-icon{width:26px;height:26px;flex:0 0 26px;display:grid;place-items:center;border:1px solid var(--border);border-radius:6px;color:var(--accent);background:var(--card)}
+.quick-custom-copy{min-width:0;display:grid;gap:2px}
+.quick-custom-copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.quick-custom-copy small{color:var(--muted);font-size:9px}
+.quick-custom-remove{width:22px;height:22px;right:5px;background:var(--card-hi);font-size:14px}
+.quick-custom-empty{grid-column:1/-1;margin:0;padding:9px 0;color:var(--muted);font-size:10px}
 .line-list{display:flex;flex-direction:column;gap:0}
 .line-item{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid #283549;min-width:0}
 .line-item:last-child{border-bottom:0}
@@ -343,6 +372,10 @@ to{opacity:1;transform:translateY(0)}
 .data-table{width:100%;min-width:650px;border-collapse:collapse;text-align:left}
 .data-table th{font-size:10px;letter-spacing:.07em;color:var(--muted);padding:9px;border-bottom:1px solid var(--border);text-transform:uppercase}
 .data-table td{padding:9px;border-bottom:1px solid var(--border);font-size:11px;vertical-align:middle}
+.medic-birthdays{display:flex;align-items:center;gap:18px;padding:18px 20px;margin-bottom:18px;border-left:3px solid #e6a14a;background:var(--card)}
+.medic-birthdays h2{margin:4px 0 0;font-size:18px}.medic-birthdays p{flex:1;margin:0;line-height:1.5}.medic-kicker{font-size:10px;font-weight:700;color:#e6a14a}
+.medic-list{margin-bottom:18px}.medic-search{max-width:260px}.medic-table{min-width:1050px}.medic-table td{white-space:normal;overflow-wrap:anywhere}.medic-table .medic-marked td{background:rgba(230,161,74,.15)}.medic-form{max-width:900px}
+@media(max-width:700px){.medic-birthdays{flex-wrap:wrap}.medic-birthdays p{min-width:60%;overflow-wrap:anywhere}.medic-list .panel-head{flex-wrap:wrap;gap:12px}.medic-search{max-width:none;width:100%}}
 .table-link{border:0;background:none;color:var(--text);padding:0;text-align:left;font-weight:700}
 .table-link:hover{color:var(--accent)}
 .table-link small{display:block;color:var(--muted);font-weight:500;margin-top:4px}

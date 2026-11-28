@@ -14,6 +14,7 @@ Statische Website ohne Build-Schritt, Backend, externe Bibliotheken oder Trackin
 - Navigationsbereiche für PD-Hub, Freizeit und gemeinsame Werkzeuge; Tool-Sichtbarkeit pro Charakter einstellbar
 - Lagerbestand mit Mengen, Stückpreisen und Gesamtwert sowie ein separater Kostenrechner
 - Einnahmen und Ausgaben mit Saldo und bearbeitbarer Buchungshistorie
+- Medic-Patientenliste mit Privatpatienten-Datum, Blutgruppe, Allergien, Notizen, Markierung und heutigen Geburtstagen
 - Ermittlungsakten mit Status, Priorität, Maßnahmen aus der bestehenden Aufgabenliste, Chronologie und TXT-/JSON-/Druckexport
 - Zentrale Verknüpfungen zwischen Akten, Personen, Fahrzeugen, Gruppierungen, Beweismitteln, Fristen, Standorten und vorhandenen Modulen
 - Globale Command-Palette mit `Strg+K` / `Cmd+K`, Datensatz- und Charakterfiltern sowie Kennzeichensuche ohne Bindestriche
@@ -21,6 +22,7 @@ Statische Website ohne Build-Schritt, Backend, externe Bibliotheken oder Trackin
 - GTA-V-Kartenmodul mit der mitgelieferten lokalen Karte, zoombarer/verschiebbarer Ansicht, Ermittlungsmarkern, Filtern, Verknüpfungen, Gebieten, Routen und Karten-Backups
 - Charakterbezogen konfigurierbares Dashboard mit neun Widgets, Favoriten, eigenen Schnellzugriffen und Notizfeld
 - Getrennte Charakterprofile; JSON-Backup und -Wiederherstellung
+- Rollenvorlagen bei der Charaktererstellung für Polizei, Medic, Mechaniker und Zivilisten; weitere Tools können jederzeit aktiviert werden
 - Changelog mit Versionshistorie und automatischer Versionspflege
 - Installierbare PWA mit lokalem App-Shell-Cache und Update-Hinweis
 
